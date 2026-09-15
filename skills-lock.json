@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "pnpm": {
+      "source": "antfu/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pnpm/SKILL.md",
+      "computedHash": "2ec08c851c6f901d4ed72c21b826416ed074a487db65662b36249418afd728bf"
+    },
+    "react-19": {
+      "source": "prowler-cloud/prowler",
+      "sourceType": "github",
+      "skillPath": "skills/react-19/SKILL.md",
+      "computedHash": "baf740d2f149d527eb164717c7f5e9a37491b58e38d8450cba4836f2db7be208"
+    },
+    "shadcn": {
+      "source": "shadcn-ui/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "f615de216e085a84e31593ad0fa9062232adc40cd87b7c7ab2b8e49abf6500be"
+    },
+    "tailwind-4": {
+      "source": "prowler-cloud/prowler",
+      "sourceType": "github",
+      "skillPath": "skills/tailwind-4/SKILL.md",
+      "computedHash": "1280a6dbc9d4997dd609e5700598437d34c76250ead3ef5ca1d4f06210ca52aa"
+    },
+    "zod-4": {
+      "source": "prowler-cloud/prowler",
+      "sourceType": "github",
+      "skillPath": "skills/zod-4/SKILL.md",
+      "computedHash": "74c140363ea586fcb92644559862ce181af16f4644a41db14722323421bbfc00"
+    },
+    "zustand": {
+      "source": "lobehub/lobehub",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/zustand/SKILL.md",
+      "computedHash": "663fbdb4f16955398f46456637aca329a9c0d65c3eba1c91bb46811064aec0cb"
+    }
+  }
+}
