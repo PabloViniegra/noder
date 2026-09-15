@@ -52,3 +52,4 @@ opencode.json
 .agents/
 .playwright-mcp/
 graphify-out/
+.impeccable/
