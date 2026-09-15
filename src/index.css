@@ -185,4 +185,12 @@
   body {
     @apply bg-background text-foreground text-body antialiased;
   }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  ::selection {
+    background-color: var(--selection);
+    color: var(--ink);
+  }
 }
