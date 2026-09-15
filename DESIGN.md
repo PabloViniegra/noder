@@ -34,43 +34,43 @@ colors:
   json-punctuation: "#8a8f98"
 typography:
   title:
-    fontFamily: Geist Variable
-    fontSize: 20px
+    fontFamily: Outfit Variable
+    fontSize: 36px
     fontWeight: 600
-    lineHeight: 1.3
+    lineHeight: 1.1
     letterSpacing: -0.02em
   title-sm:
-    fontFamily: Geist Variable
+    fontFamily: Outfit Variable
     fontSize: 16px
-    fontWeight: 500
-    lineHeight: 1.35
+    fontWeight: 600
+    lineHeight: 1.2
     letterSpacing: -0.015em
   body:
-    fontFamily: Geist Variable
+    fontFamily: Outfit Variable
     fontSize: 13px
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: -0.011em
   body-strong:
-    fontFamily: Geist Variable
+    fontFamily: Outfit Variable
     fontSize: 13px
     fontWeight: 500
     lineHeight: 1.5
     letterSpacing: -0.011em
   label:
-    fontFamily: Geist Variable
+    fontFamily: Outfit Variable
     fontSize: 12px
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: 0
   caption:
-    fontFamily: Geist Variable
+    fontFamily: Outfit Variable
     fontSize: 11px
     fontWeight: 500
     lineHeight: 1.35
     letterSpacing: 0.01em
   button:
-    fontFamily: Geist Variable
+    fontFamily: Outfit Variable
     fontSize: 13px
     fontWeight: 500
     lineHeight: 1
@@ -318,9 +318,9 @@ Glass fills use `{colors.glass}` with `{colors.glass-border}` and a top-edge `{c
 
 ## Typography
 
-UI copy is Geist Variable. JSON, file paths, JSONPath, and keyboard glyphs are Geist Mono. Do not introduce a third family.
+UI copy, empty-state headings, and the product name are Outfit Variable. JSON, file paths, JSONPath, and keyboard glyphs are Geist Mono. Do not introduce a third family.
 
-The working size is `{typography.body}` / `{typography.code}` at 13px / 12px. Tree rows, search, command results, and inspector fields all sit on that density. `{typography.title}` is for empty states and the product name, not for in-app section headers. Tighten tracking only on titles. Captions and kbd stay at or above 11px.
+The working size is `{typography.body}` / `{typography.code}` at 13px / 12px. Tree rows, search, command results, and inspector fields all sit on that density. `{typography.title}` is the empty-state heading. `{typography.title-sm}` is the wordmark in chrome, not in-app section headers. Tighten tracking only on titles. Captions and kbd stay at or above 11px.
 
 Tree keys use `{typography.code}` even when they are identifiers, so path, key, and value share one rhythm.
 
@@ -378,6 +378,7 @@ Build from shadcn/ui primitives (Button, Input, Command, Dialog, DropdownMenu, P
 
 - Do keep the tree, code view, and minimap in the opaque content layer.
 - Do use `{colors.primary}` only for focus, selection tint, and links.
+- Do use Outfit for UI copy, titles, and the wordmark.
 - Do use Geist Mono for JSON, paths, and shortcuts.
 - Do honor reduced transparency with an opaque `{colors.surface-high}` fallback.
 - Do honor reduced motion by dropping morph, lens travel, and press-scale.

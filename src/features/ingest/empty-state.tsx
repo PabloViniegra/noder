@@ -192,7 +192,7 @@ export function EmptyState() {
         className="glass-lens absolute inset-x-2 top-2 z-20 flex h-11 items-center rounded-xl px-3"
       >
         <GlassLayers />
-        <p className="relative text-label font-medium text-ink">Noder</p>
+        <p className="relative font-heading text-title-sm text-ink">Noder</p>
       </header>
       <main className="relative z-10 flex min-h-svh items-center justify-center px-4 pt-16 pb-8">
         <section
@@ -205,7 +205,7 @@ export function EmptyState() {
           <GlassLayers />
           <div className="relative flex flex-col gap-6">
             <div className="flex flex-col gap-2">
-              <h1 id="noder-title" className="text-title font-semibold tracking-tight text-ink">
+              <h1 id="noder-title" className="font-heading text-title text-balance text-ink">
                 Open JSON
               </h1>
               <p id={lineId} className="font-mono text-body text-ink-subtle">

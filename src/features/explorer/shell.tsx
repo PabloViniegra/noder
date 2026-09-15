@@ -10,7 +10,7 @@ export function ExplorerShell() {
     <div className="relative min-h-svh bg-canvas">
       <header className="glass absolute inset-x-2 top-2 flex h-11 items-center justify-between rounded-xl px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-label font-medium text-ink">Noder</h1>
+          <h1 className="font-heading text-title-sm text-ink">Noder</h1>
           {sourceName !== null && (
             <p className="truncate font-mono text-label text-ink-subtle">{sourceName}</p>
           )}
