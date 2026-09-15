@@ -2,10 +2,9 @@ import { expect, test } from "@playwright/test"
 
 test("loads the empty command well", async ({ page }) => {
   await page.goto("/")
-  await expect(page.getByRole("heading", { name: "Noder" })).toBeVisible()
-  await expect(
-    page.getByText("Drop, paste, or open a file — it never leaves this browser."),
-  ).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Open JSON" })).toBeVisible()
+  await expect(page.getByText("It never leaves this browser.")).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Open JSON" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible()
 })
 
@@ -35,5 +34,6 @@ test("invalid JSON stays on the well with an error", async ({ page }) => {
     buffer: Buffer.from("{"),
   })
   await expect(page.getByRole("alert")).toContainText("This isn't valid JSON.")
+  await expect(page.getByRole("textbox", { name: "Open JSON" })).toHaveValue("{")
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible()
 })

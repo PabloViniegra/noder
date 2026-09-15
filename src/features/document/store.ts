@@ -31,7 +31,7 @@ export const useDocumentStore = create<DocumentState & DocumentActions>((set) =>
       set({ status: "ready", sourceName, text, error: null })
       return
     }
-    set({ status: "error", sourceName, text: null, error: result.message })
+    set({ status: "error", sourceName, text, error: result.message })
   },
   loadFile: async (file) => {
     set({ status: "reading", error: null, sourceName: file.name })
@@ -45,7 +45,7 @@ export const useDocumentStore = create<DocumentState & DocumentActions>((set) =>
       set({
         status: "error",
         sourceName: file.name,
-        text: null,
+        text,
         error: result.message,
       })
     } catch {

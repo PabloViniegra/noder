@@ -18,7 +18,7 @@ describe("document store", () => {
     useDocumentStore.getState().loadText("{", "broken.json")
     const state = useDocumentStore.getState()
     expect(state.status).toBe("error")
-    expect(state.text).toBeNull()
+    expect(state.text).toBe("{")
     expect(state.error).not.toBeNull()
   })
 })
