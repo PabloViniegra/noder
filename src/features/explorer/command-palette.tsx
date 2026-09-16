@@ -18,6 +18,7 @@ type CommandPaletteProps = {
   readonly canFocus: boolean
   readonly isFocused: boolean
   readonly onSearchQuery: (query: string) => void
+  readonly onGoToPath: () => void
   readonly onFocusSearch: () => void
   readonly onFocusSelected: () => void
   readonly onExitFocus: () => void
@@ -64,6 +65,7 @@ export function CommandPalette({
   canFocus,
   isFocused,
   onSearchQuery,
+  onGoToPath,
   onFocusSearch,
   onFocusSelected,
   onExitFocus,
@@ -140,6 +142,12 @@ export function CommandPalette({
                 heading="Actions"
                 className="p-1 text-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-caption [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-subtle"
               >
+                <PaletteItem
+                  icon={SearchIcon}
+                  label="Go to JSONPath"
+                  value="go to jsonpath path locate"
+                  onSelect={() => runAction(onGoToPath)}
+                />
                 <PaletteItem
                   icon={SearchIcon}
                   label="Search document"

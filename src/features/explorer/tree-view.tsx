@@ -22,6 +22,7 @@ import type {
 import {
   formatJsonPath,
   isJsonPathWithin,
+  parseJsonPath,
   parentJsonPath,
   serializeJsonPath,
 } from "@/core/json/path"
@@ -32,6 +33,7 @@ import {
 } from "@/core/json/traverse"
 import { searchJson } from "@/core/json/search"
 import { CommandPalette } from "@/features/explorer/command-palette"
+import { JsonPathDialog } from "@/features/explorer/json-path-dialog"
 import { cn } from "@/lib/utils"
 
 type ContainerNode = JsonObjectNode | JsonArrayNode
@@ -290,6 +292,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle")
   const [searchQuery, setSearchQuery] = useState("")
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [pathDialogOpen, setPathDialogOpen] = useState(false)
   const focusedNode = getJsonNodeAtPath(root, focusedPath) ?? root
   const visibleNodes = flattenVisibleNodes(focusedNode, expandedPaths)
   const searchMatches = searchJson(focusedNode, searchQuery)
@@ -372,6 +375,33 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     }
     setExpandedPaths(nextExpandedPaths)
     selectPath(serializeJsonPath(path))
+  }
+
+  function navigateToPath(input: string): string | null {
+    const result = parseJsonPath(input)
+    if (!result.ok) {
+      return result.message
+    }
+
+    const targetNode = getJsonNodeAtPath(root, result.path)
+    if (targetNode === null) {
+      return `No node found at ${formatJsonPath(result.path)}.`
+    }
+
+    const nextFocusedPath = isJsonPathWithin(result.path, focusedPath) ? focusedPath : root.path
+    const nextFocusedPathKey = serializeJsonPath(nextFocusedPath)
+    const nextExpandedPaths =
+      nextFocusedPathKey === focusedPathKey
+        ? new Set(expandedPaths)
+        : new Set([nextFocusedPathKey])
+
+    for (let length = nextFocusedPath.length; length <= result.path.length; length += 1) {
+      nextExpandedPaths.add(serializeJsonPath(result.path.slice(0, length)))
+    }
+    setFocusedPath(nextFocusedPath)
+    setExpandedPaths(nextExpandedPaths)
+    selectPath(serializeJsonPath(result.path))
+    return null
   }
 
   function moveToSearchMatch(direction: number) {
@@ -538,6 +568,16 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
             type="button"
             variant="outline"
             size="sm"
+            onClick={() => setPathDialogOpen(true)}
+            data-json-path-trigger
+          >
+            <SearchIcon data-icon="inline-start" aria-hidden />
+            Go to path
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => setPaletteOpen(true)}
             data-command-trigger
           >
@@ -672,11 +712,19 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
           setSearchQuery(query)
           focusDocumentSearch()
         }}
+        onGoToPath={() => setPathDialogOpen(true)}
         onFocusSearch={focusDocumentSearch}
         onFocusSelected={focusSelectedNode}
         onExitFocus={() => focusPath(root.path)}
         onCopyPath={copySelectedPath}
         onCloseDocument={onCloseDocument}
+      />
+      <JsonPathDialog
+        key={pathDialogOpen ? "open" : "closed"}
+        open={pathDialogOpen}
+        initialPath={formatJsonPath(selectedNode.path)}
+        onOpenChange={setPathDialogOpen}
+        onNavigate={navigateToPath}
       />
     </section>
   )

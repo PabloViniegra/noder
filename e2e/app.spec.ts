@@ -59,6 +59,71 @@ test("shows document statistics for the loaded JSON", async ({ page }) => {
   await expect(stats.locator('[data-stat="maxDepth"]')).toHaveText("2")
 })
 
+test("navigates to a nested node with JSONPath", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"user-name":{"profile.name":"Ada"}}')
+  await input.press("Enter")
+
+  await page.keyboard.press("Control+k")
+  const palette = page.getByRole("dialog")
+  await palette.getByRole("combobox", { name: "Search commands" }).fill("go to jsonpath")
+  await palette.getByRole("option", { name: "Go to JSONPath", exact: true }).click()
+
+  const pathDialog = page.getByRole("dialog")
+  const pathInput = pathDialog.getByRole("textbox", { name: "JSONPath" })
+  await expect(pathInput).toBeFocused()
+  await pathInput.fill('$["user-name"]["profile.name"]')
+  await pathInput.press("Enter")
+
+  await expect(pathDialog).toBeHidden()
+  await expect(page.locator("[data-selected-path]")).toHaveText('$["user-name"]["profile.name"]')
+  await expect(page.getByText("profile.name", { exact: true })).toBeVisible()
+})
+
+test("keeps the JSONPath dialog open for an unknown node", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"user":{"id":1}}')
+  await input.press("Enter")
+
+  await page.getByRole("button", { name: "Go to path" }).click()
+  const dialog = page.getByRole("dialog")
+  const pathInput = dialog.getByRole("textbox", { name: "JSONPath" })
+  await pathInput.fill("$.missing")
+  await pathInput.press("Enter")
+
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole("alert")).toHaveText("No node found at $.missing.")
+
+  await pathInput.fill("$.user.id")
+  await pathInput.press("Enter")
+  await expect(dialog).toBeHidden()
+  await expect(page.locator("[data-selected-path]")).toHaveText("$.user.id")
+})
+
+test("leaves focus mode when JSONPath targets another branch", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
+  await input.press("Enter")
+
+  await page.getByRole("treeitem").filter({ hasText: "users" }).click()
+  await page.getByRole("button", { name: "Focus here" }).click()
+  await expect(page.getByRole("button", { name: "Exit focus" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Go to path" }).click()
+  const dialog = page.getByRole("dialog")
+  const pathInput = dialog.getByRole("textbox", { name: "JSONPath" })
+  await pathInput.fill("$.meta.ok")
+  await pathInput.press("Enter")
+
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole("button", { name: "Exit focus" })).toHaveCount(0)
+  await expect(page.locator("[data-selected-path]")).toHaveText("$.meta.ok")
+  await expect(page.getByText("meta", { exact: true })).toBeVisible()
+})
+
 test("navigates tree rows and copies the selected JSONPath", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: "http://127.0.0.1:5173",

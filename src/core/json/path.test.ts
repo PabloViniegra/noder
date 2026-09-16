@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatJsonPath, isJsonPathWithin, parentJsonPath } from "./path"
+import { formatJsonPath, isJsonPathWithin, parentJsonPath, parseJsonPath } from "./path"
 
 describe("JSON paths", () => {
   it("formats object keys and array indexes as JSONPath", () => {
@@ -11,6 +11,21 @@ describe("JSON paths", () => {
     expect(formatJsonPath(["user-name", "a.b", 'say"hi'])).toBe(
       '$["user-name"]["a.b"]["say\\\"hi"]',
     )
+  })
+
+  it("parses paths produced by the formatter", () => {
+    const paths = [[], ["users", 0, "profile"], ["user-name", 'say"hi']]
+
+    for (const path of paths) {
+      expect(parseJsonPath(formatJsonPath(path))).toEqual({ ok: true, path })
+    }
+  })
+
+  it("rejects unsupported or malformed paths", () => {
+    expect(parseJsonPath("users").ok).toBe(false)
+    expect(parseJsonPath("$.users[*]").ok).toBe(false)
+    expect(parseJsonPath("$.users[-1]").ok).toBe(false)
+    expect(parseJsonPath('$["unterminated]').ok).toBe(false)
   })
 
   it("returns a parent path and checks containment", () => {
