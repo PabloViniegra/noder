@@ -11,6 +11,8 @@ describe("document store", () => {
     const state = useDocumentStore.getState()
     expect(state.status).toBe("ready")
     expect(state.sourceName).toBe("payload.json")
+    expect(state.document?.root.kind).toBe("object")
+    expect(state.document?.stats.nodes).toBe(2)
     expect(state.error).toBeNull()
   })
 
@@ -19,6 +21,7 @@ describe("document store", () => {
     const state = useDocumentStore.getState()
     expect(state.status).toBe("error")
     expect(state.text).toBe("{")
+    expect(state.document).toBeNull()
     expect(state.error?.kind).toBe("parse")
   })
 })
