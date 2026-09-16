@@ -22,7 +22,9 @@ export function ExplorerShell() {
         </Button>
       </header>
       <main className="min-h-svh px-4 pt-20 pb-8">
-        {document !== null && <TreeView root={document.root} onCloseDocument={clear} />}
+        {document !== null && (
+          <TreeView root={document.root} stats={document.stats} onCloseDocument={clear} />
+        )}
       </main>
     </div>
   )

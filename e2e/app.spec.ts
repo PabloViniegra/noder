@@ -41,6 +41,24 @@ test("renders a progressive tree and expands a branch with the keyboard", async 
   await expect(page.getByText("id", { exact: true })).toBeVisible()
 })
 
+test("shows document statistics for the loaded JSON", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const text = '{"user":{"id":1,"active":true},"tags":["json",null]}'
+  await input.fill(text)
+  await input.press("Enter")
+
+  const stats = page.getByRole("region", { name: "Document statistics" })
+  await expect(stats).toBeVisible()
+  await expect(stats.locator('[data-stat="bytes"]')).toHaveText(
+    `${new TextEncoder().encode(text).byteLength} B`,
+  )
+  await expect(stats.locator('[data-stat="nodes"]')).toHaveText("7")
+  await expect(stats.locator('[data-stat="objects"]')).toHaveText("2")
+  await expect(stats.locator('[data-stat="arrays"]')).toHaveText("1")
+  await expect(stats.locator('[data-stat="maxDepth"]')).toHaveText("2")
+})
+
 test("navigates tree rows and copies the selected JSONPath", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"], {
     origin: "http://127.0.0.1:5173",

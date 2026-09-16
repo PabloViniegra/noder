@@ -17,6 +17,7 @@ import type {
   JsonNodeKind,
   JsonObjectNode,
   JsonPath,
+  JsonStats,
 } from "@/core/json/types"
 import {
   formatJsonPath,
@@ -38,6 +39,7 @@ type CopyStatus = "idle" | "copied" | "error"
 
 type TreeViewProps = {
   readonly root: JsonNode
+  readonly stats: JsonStats
   readonly onCloseDocument: () => void
 }
 
@@ -56,6 +58,10 @@ type TreeRowProps = {
 type BreadcrumbsProps = {
   readonly path: JsonPath
   readonly onNavigate: (path: JsonPath) => void
+}
+
+type DocumentStatsProps = {
+  readonly stats: JsonStats
 }
 
 function kindClass(kind: JsonNodeKind): string {
@@ -152,6 +158,60 @@ function searchCountLabel(count: number): string {
   return `${count} ${count === 1 ? "match" : "matches"}`
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+
+  const units = ["KB", "MB", "GB"]
+  let value = bytes
+  let unitIndex = -1
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`
+}
+
+function DocumentStats({ stats }: DocumentStatsProps) {
+  const metrics = [
+    { key: "bytes", label: "Size", value: formatBytes(stats.bytes) },
+    { key: "nodes", label: "Nodes", value: String(stats.nodes) },
+    { key: "objects", label: "Objects", value: String(stats.objects) },
+    { key: "arrays", label: "Arrays", value: String(stats.arrays) },
+    { key: "maxDepth", label: "Max depth", value: String(stats.maxDepth) },
+  ] as const
+
+  return (
+    <section
+      aria-labelledby="document-stats-title"
+      data-document-stats
+      className="overflow-hidden rounded-md border border-hairline"
+    >
+      <h3 id="document-stats-title" className="sr-only">
+        Document statistics
+      </h3>
+      <dl className="grid grid-cols-2 gap-px bg-hairline sm:grid-cols-5">
+        {metrics.map((metric) => (
+          <div
+            key={metric.key}
+            className="flex min-w-0 flex-col gap-1 bg-surface px-3 py-2 last:col-span-2 sm:last:col-span-1"
+          >
+            <dt className="text-caption text-ink-subtle">{metric.label}</dt>
+            <dd
+              data-stat={metric.key}
+              className="truncate font-mono text-label font-medium tabular-nums text-ink"
+            >
+              {metric.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
 function TreeRow({
   node,
   expandedPaths,
@@ -218,7 +278,7 @@ function TreeRow({
   )
 }
 
-export function TreeView({ root, onCloseDocument }: TreeViewProps) {
+export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef(new Map<string, HTMLDivElement>())
@@ -523,6 +583,7 @@ export function TreeView({ root, onCloseDocument }: TreeViewProps) {
           </p>
         </div>
       </div>
+      <DocumentStats stats={stats} />
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-0 flex-1 basis-80">
           <SearchIcon
