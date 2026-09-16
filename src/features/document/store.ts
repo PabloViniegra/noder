@@ -3,11 +3,16 @@ import { parseJson } from "@/core/json/parse"
 
 export type DocumentStatus = "empty" | "reading" | "ready" | "error"
 
+export type DocumentError = {
+  readonly kind: "parse" | "read"
+  readonly message: string
+}
+
 type DocumentState = {
   status: DocumentStatus
   sourceName: string | null
   text: string | null
-  error: string | null
+  error: DocumentError | null
 }
 
 type DocumentActions = {
@@ -31,7 +36,12 @@ export const useDocumentStore = create<DocumentState & DocumentActions>((set) =>
       set({ status: "ready", sourceName, text, error: null })
       return
     }
-    set({ status: "error", sourceName, text, error: result.message })
+    set({
+      status: "error",
+      sourceName,
+      text,
+      error: { kind: "parse", message: result.message },
+    })
   },
   loadFile: async (file) => {
     set({ status: "reading", error: null, sourceName: file.name })
@@ -46,14 +56,14 @@ export const useDocumentStore = create<DocumentState & DocumentActions>((set) =>
         status: "error",
         sourceName: file.name,
         text,
-        error: result.message,
+        error: { kind: "parse", message: result.message },
       })
     } catch {
       set({
         status: "error",
         sourceName: file.name,
         text: null,
-        error: "Could not read this file.",
+        error: { kind: "read", message: "Could not read this file." },
       })
     }
   },

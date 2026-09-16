@@ -10,14 +10,41 @@ import {
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { Spinner } from "@/components/ui/spinner"
+import { summarizeJson, type JsonSummary } from "@/core/json/summarize"
 import { useDocumentStore } from "@/features/document/store"
 import { GlassFilter, GlassLayers } from "@/features/ingest/glass-lens"
 import { StructuralField } from "@/features/ingest/structural-field"
 import { cn } from "@/lib/utils"
 
+const PREVIEW_LIMIT = 1_000_000
+const isMac = /mac/i.test(navigator.userAgent)
+
+const SUMMARY_TONE = {
+  object: "text-ink-muted",
+  array: "text-ink-muted",
+  string: "text-json-string",
+  number: "text-json-number",
+  boolean: "text-json-boolean",
+  null: "text-json-null",
+}
+
+function countLabel(summary: Extract<JsonSummary, { count: number }>): string {
+  const noun = summary.kind === "object" ? "key" : "item"
+  return `${summary.count} ${summary.count === 1 ? noun : `${noun}s`}`
+}
+
+function previewSummary(draft: string): JsonSummary | null {
+  const text = draft.trim()
+  if (text.length === 0 || text.length > PREVIEW_LIMIT) {
+    return null
+  }
+  return summarizeJson(text)
+}
+
 export function EmptyState() {
   const status = useDocumentStore((s) => s.status)
   const error = useDocumentStore((s) => s.error)
+  const submitted = useDocumentStore((s) => s.text)
   const loadText = useDocumentStore((s) => s.loadText)
   const loadFile = useDocumentStore((s) => s.loadFile)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -27,7 +54,11 @@ export function EmptyState() {
   const dragDepth = useRef(0)
   const [dragging, setDragging] = useState(false)
   const [draft, setDraft] = useState("")
+  const [summary, setSummary] = useState<JsonSummary | null>(null)
   const busy = status === "reading"
+  const settled = error === null || submitted === null || draft === submitted
+  const shownError = settled ? error : null
+  const showSummary = summary !== null && shownError === null && !busy
 
   function ingestFile(file: File) {
     void loadFile(file).then(() => {
@@ -45,6 +76,11 @@ export function EmptyState() {
     loadText(text, sourceName)
     setDraft(text)
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSummary(previewSummary(draft)), 160)
+    return () => window.clearTimeout(timer)
+  }, [draft])
 
   useEffect(() => {
     function onPaste(event: ClipboardEvent) {
@@ -198,7 +234,7 @@ export function EmptyState() {
         <section
           ref={wellRef}
           aria-labelledby="noder-title"
-          aria-describedby={error === null ? lineId : `${lineId} ${errorId}`}
+          aria-describedby={shownError === null ? lineId : `${lineId} ${errorId}`}
           data-dragging={dragging ? "true" : undefined}
           className="glass-lens relative w-full max-w-[640px] rounded-xl p-8"
         >
@@ -208,42 +244,66 @@ export function EmptyState() {
               <h1 id="noder-title" className="font-heading text-title text-balance text-ink">
                 Open JSON
               </h1>
-              <p id={lineId} className="font-mono text-body text-ink-subtle">
+              <p id={lineId} className="text-body text-pretty text-ink-muted">
                 {dragging
                   ? "Drop JSON to open — it never leaves this browser."
                   : "It never leaves this browser."}
               </p>
-              {error !== null && (
+              {shownError !== null && (
                 <div id={errorId} role="alert" className="flex flex-col gap-1">
-                  <p className="font-mono text-caption text-destructive">
-                    This isn't valid JSON. Drop, paste, or open another file.
+                  <p className="text-body text-pretty text-destructive">
+                    {shownError.kind === "read"
+                      ? "That file could not be read. Try another one."
+                      : "This isn't valid JSON. Drop, paste, or open another file."}
                   </p>
-                  <p className="font-mono text-caption text-ink-subtle">{error}</p>
+                  <p className="font-mono text-caption text-pretty text-ink-subtle">
+                    {shownError.message}
+                  </p>
                 </div>
               )}
             </div>
-            <textarea
-              ref={jsonRef}
-              id="json-input"
-              aria-labelledby="noder-title"
-              aria-describedby={error === null ? lineId : `${lineId} ${errorId}`}
-              aria-invalid={error !== null}
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-              disabled={busy}
-              placeholder={"{\n\n}"}
-              value={draft}
-              onChange={onDraftChange}
-              onKeyDown={onDraftKeyDown}
-              className={cn(
-                "min-h-28 w-full resize-none rounded-lg bg-canvas px-4 py-3 font-mono text-code text-ink outline-none transition-[border-color] duration-150 placeholder:text-json-punctuation sm:min-h-36",
-                "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
-                "disabled:opacity-50",
-                error !== null ? "border border-destructive" : "border border-hairline",
-                dragging && error === null && "border-hairline-strong",
-              )}
-            />
+            <div className="flex flex-col gap-2">
+              <textarea
+                ref={jsonRef}
+                id="json-input"
+                aria-labelledby="noder-title"
+                aria-describedby={shownError === null ? lineId : `${lineId} ${errorId}`}
+                aria-invalid={shownError !== null}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={busy}
+                placeholder={"{\n\n}"}
+                value={draft}
+                onChange={onDraftChange}
+                onKeyDown={onDraftKeyDown}
+                className={cn(
+                  "min-h-28 w-full resize-none rounded-lg bg-canvas px-4 py-3 font-mono text-code text-ink caret-primary-hover outline-none transition-[border-color] duration-150 placeholder:text-json-punctuation [scrollbar-color:var(--hairline-strong)_transparent] sm:min-h-36",
+                  "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
+                  "disabled:opacity-50",
+                  shownError !== null ? "border border-destructive" : "border border-hairline",
+                  dragging && shownError === null && "border-hairline-strong",
+                )}
+              />
+              <p
+                className={cn(
+                  "flex h-4 items-center gap-1.5 font-mono text-caption transition-[opacity,translate] duration-200 ease-out motion-reduce:transition-none",
+                  showSummary ? "translate-y-0 opacity-100" : "translate-y-0.5 opacity-0",
+                )}
+              >
+                {showSummary && summary !== null && (
+                  <>
+                    <span className={SUMMARY_TONE[summary.kind]}>{summary.kind}</span>
+                    {"count" in summary && (
+                      <>
+                        <span className="text-json-punctuation">·</span>
+                        <span className="text-ink-subtle">{countLabel(summary)}</span>
+                      </>
+                    )}
+                  </>
+                )}
+              </p>
+            </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <input
                 ref={inputRef}
@@ -281,12 +341,7 @@ export function EmptyState() {
               <p className="pointer-events-none hidden font-mono text-caption text-ink-subtle sm:flex sm:flex-wrap sm:items-center sm:gap-2">
                 Paste
                 <KbdGroup>
-                  <Kbd>Cmd</Kbd>
-                  <Kbd>V</Kbd>
-                </KbdGroup>
-                <span>/</span>
-                <KbdGroup>
-                  <Kbd>Ctrl</Kbd>
+                  <Kbd>{isMac ? "Cmd" : "Ctrl"}</Kbd>
                   <Kbd>V</Kbd>
                 </KbdGroup>
               </p>

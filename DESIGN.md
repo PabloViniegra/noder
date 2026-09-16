@@ -360,7 +360,7 @@ Build from shadcn/ui primitives (Button, Input, Command, Dialog, DropdownMenu, P
 
 **Buttons.** One `{components.button-primary}` inverted fill per view. Secondary is transparent with `{colors.hairline}` border. Ghost is for icon and chrome actions. Destructive is text `{colors.error}` on transparent, never a red fill in the chrome layer. Height 32px in forms, 28px in chrome.
 
-**Input and search.** `{components.input}` sits on `{colors.canvas}` with `{colors.hairline}`. Focus uses a 2px ring in `{colors.primary-focus}` at 40% opacity, not a glow. Placeholder is `{colors.ink-subtle}`.
+**Input and search.** `{components.input}` sits on `{colors.canvas}` with `{colors.hairline}`. Focus uses a 2px ring in `{colors.primary-focus}` at 40% opacity, not a glow. Placeholder is `{colors.ink-subtle}`. The ingest well echoes the parsed root on a reserved line under the field — `object · 4 keys` — at `{typography.caption}` in Geist Mono, with container kinds in `{colors.ink-muted}`, scalar kinds in their JSON token, and counts in `{colors.ink-subtle}`.
 
 **Tree row.** `{components.tree-row}` is the atomic line of the product. Monospace. Type-colored values. Disclosure chevron in `{colors.ink-subtle}` until hover. Do not zebra-stripe. Do not put glass on rows.
 

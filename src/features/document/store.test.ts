@@ -19,6 +19,6 @@ describe("document store", () => {
     const state = useDocumentStore.getState()
     expect(state.status).toBe("error")
     expect(state.text).toBe("{")
-    expect(state.error).not.toBeNull()
+    expect(state.error?.kind).toBe("parse")
   })
 })
