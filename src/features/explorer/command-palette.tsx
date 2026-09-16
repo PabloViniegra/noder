@@ -47,7 +47,7 @@ function PaletteItem({
       disabled={disabled}
       onSelect={onSelect}
       className={cn(
-        "group/command-item flex h-9 cursor-default items-center gap-3 rounded-md px-3 text-body text-ink outline-none select-none",
+        "group/command-item flex min-h-11 cursor-default items-center gap-3 rounded-md px-3 text-body text-ink outline-none select-none sm:h-9 sm:min-h-0",
         "data-[selected=true]:bg-surface-raised data-[selected=true]:text-ink",
         "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -117,7 +117,7 @@ export function CommandPalette({
                 value={query}
                 onValueChange={setQuery}
                 placeholder="Search for a command or action…"
-                className="min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-ink-subtle"
+                className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-subtle sm:text-body"
               />
               <Kbd>Esc</Kbd>
             </div>
@@ -156,8 +156,8 @@ export function CommandPalette({
                 />
                 <PaletteItem
                   icon={FocusIcon}
-                  label="Focus selected branch"
-                  value="focus selected branch"
+                  label="Focus branch"
+                  value="focus branch selected"
                   disabled={!canFocus}
                   onSelect={() => runAction(onFocusSelected)}
                 />

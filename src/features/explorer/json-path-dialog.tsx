@@ -61,6 +61,7 @@ export function JsonPathDialog({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="size-11 shrink-0 sm:size-7"
               aria-label="Close JSONPath dialog"
               onClick={() => onOpenChange(false)}
             >
@@ -82,10 +83,10 @@ export function JsonPathDialog({
                 onChange={(event) => setValue(event.currentTarget.value)}
                 aria-invalid={error !== null}
                 aria-describedby={error === null ? "json-path-hint" : "json-path-error"}
-                className="h-8 min-w-0 flex-1 rounded-md border border-hairline bg-canvas px-2.5 font-mono text-code text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
+                className="h-11 min-w-0 flex-1 rounded-md border border-hairline bg-canvas px-2.5 font-mono text-base text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 sm:h-8 sm:text-code"
                 placeholder="$.users[0].profile"
               />
-              <Button type="submit" size="sm">
+              <Button type="submit" size="sm" className="h-11 sm:h-7">
                 <ArrowRightIcon data-icon="inline-start" aria-hidden />
                 Go
               </Button>

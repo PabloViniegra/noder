@@ -2,13 +2,21 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import {
   ChevronDownIcon,
   ChevronRightIcon,
+  ChevronUpIcon,
   CommandIcon,
   CopyIcon,
   FocusIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react"
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import type {
@@ -38,6 +46,10 @@ import { cn } from "@/lib/utils"
 
 type ContainerNode = JsonObjectNode | JsonArrayNode
 type CopyStatus = "idle" | "copied" | "error"
+type TreeItemPosition = {
+  readonly positionInSet: number
+  readonly setSize: number
+}
 
 type TreeViewProps = {
   readonly root: JsonNode
@@ -49,6 +61,11 @@ type TreeRowProps = {
   readonly node: JsonNode
   readonly expandedPaths: ReadonlySet<string>
   readonly selected: boolean
+  readonly matched: boolean
+  readonly currentMatch: boolean
+  readonly level: number
+  readonly positionInSet: number
+  readonly setSize: number
   readonly onToggle: (path: string) => void
   readonly onSelect: () => void
   readonly onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void
@@ -114,6 +131,30 @@ function scalarValue(node: JsonNode): string {
   }
 }
 
+function treeItemPosition(
+  root: JsonNode,
+  treeRoot: JsonNode,
+  node: JsonNode,
+): TreeItemPosition {
+  if (serializeJsonPath(node.path) === serializeJsonPath(treeRoot.path)) {
+    return { positionInSet: 1, setSize: 1 }
+  }
+
+  const parentPath = parentJsonPath(node.path)
+  const parent = parentPath === null ? null : getJsonNodeAtPath(root, parentPath)
+  if (parent === null || !isJsonContainerNode(parent)) {
+    return { positionInSet: 1, setSize: 1 }
+  }
+
+  const position = parent.children.findIndex(
+    (sibling) => serializeJsonPath(sibling.path) === serializeJsonPath(node.path),
+  )
+  return {
+    positionInSet: position === -1 ? 1 : position + 1,
+    setSize: parent.children.length,
+  }
+}
+
 function Breadcrumbs({ path, onNavigate }: BreadcrumbsProps) {
   let currentPath: JsonPath = []
   const items: Array<{ readonly label: string; readonly path: JsonPath }> = [
@@ -156,8 +197,12 @@ function Breadcrumbs({ path, onNavigate }: BreadcrumbsProps) {
   )
 }
 
-function searchCountLabel(count: number): string {
-  return `${count} ${count === 1 ? "match" : "matches"}`
+function searchCountLabel(count: number, currentIndex: number): string {
+  if (count === 0) {
+    return "No matches"
+  }
+  const countLabel = `${count} ${count === 1 ? "match" : "matches"}`
+  return currentIndex === -1 ? countLabel : `${currentIndex + 1} of ${countLabel}`
 }
 
 function formatBytes(bytes: number): string {
@@ -218,6 +263,11 @@ function TreeRow({
   node,
   expandedPaths,
   selected,
+  matched,
+  currentMatch,
+  level,
+  positionInSet,
+  setSize,
   onToggle,
   onSelect,
   onKeyDown,
@@ -236,44 +286,73 @@ function TreeRow({
       <div
         ref={rowRef}
         role="treeitem"
-        aria-level={node.depth + 1}
+        aria-level={level}
+        aria-posinset={positionInSet}
+        aria-setsize={setSize}
         aria-selected={selected}
+        aria-current={currentMatch ? "true" : undefined}
         aria-expanded={expandable ? expanded : undefined}
+        data-search-match={matched ? "true" : undefined}
+        data-search-current={currentMatch ? "true" : undefined}
         tabIndex={selected ? 0 : -1}
-        onClick={onSelect}
+        onClick={(event: MouseEvent<HTMLDivElement>) => {
+          const disclosure =
+            event.target instanceof Element
+              ? event.target.closest("[data-tree-disclosure]")
+              : null
+          if (expandable && disclosure !== null) {
+            onToggle(path)
+            return
+          }
+          onSelect()
+        }}
         onFocus={onSelect}
         onKeyDown={onKeyDown}
         className={cn(
-          "group flex min-h-7 min-w-max items-center rounded-sm px-1 outline-none transition-colors",
+          "group flex min-h-7 w-full min-w-0 items-center overflow-hidden rounded-sm px-1 outline-none transition-colors",
           selected
             ? "bg-selection text-ink hover:bg-selection"
-            : "hover:bg-surface-raised focus-visible:bg-selection",
+            : matched
+              ? "bg-primary/10 hover:bg-primary/15"
+              : "hover:bg-surface-raised focus-visible:bg-selection",
+          currentMatch && "ring-1 ring-primary/60",
           "focus-visible:ring-2 focus-visible:ring-ring/40",
         )}
         style={{ paddingInlineStart: `${node.depth * 16 + 4}px` }}
-      >
+        >
+        <span
+          aria-hidden
+          className={cn(
+            "mr-1 size-1.5 shrink-0 rounded-full",
+            matched ? (currentMatch ? "bg-primary-hover" : "bg-primary/70") : "bg-transparent",
+          )}
+        />
         {expandable ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            tabIndex={-1}
-            aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
-            aria-expanded={expanded}
-            onClick={() => onToggle(path)}
-            className="mr-1 text-ink-subtle hover:text-ink"
+          <span
+            aria-hidden
+            data-tree-disclosure
+            className="mr-1 flex size-6 shrink-0 items-center justify-center text-ink-subtle transition-colors group-hover:text-ink"
           >
             {expanded ? <ChevronDownIcon aria-hidden /> : <ChevronRightIcon aria-hidden />}
-          </Button>
+          </span>
         ) : (
           <span aria-hidden className="mr-1 inline-block size-6 shrink-0" />
         )}
-        <span className="text-json-key">{label}</span>
+        <span className="min-w-0 max-w-[45%] truncate text-json-key" title={label}>
+          {label}
+        </span>
         {node.key !== null && <span className="text-json-punctuation">:</span>}
         {container ? (
-          <span className={cn("ml-2", kindClass(node.kind))}>{containerSummary(node)}</span>
+          <span className={cn("ml-2 min-w-0 truncate", kindClass(node.kind))}>
+            {containerSummary(node)}
+          </span>
         ) : (
-          <span className={cn("ml-2", kindClass(node.kind))}>{scalarValue(node)}</span>
+          <span
+            className={cn("ml-2 min-w-0 flex-1 truncate", kindClass(node.kind))}
+            title={scalarValue(node)}
+          >
+            {scalarValue(node)}
+          </span>
         )}
       </div>
     </li>
@@ -296,6 +375,16 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const focusedNode = getJsonNodeAtPath(root, focusedPath) ?? root
   const visibleNodes = flattenVisibleNodes(focusedNode, expandedPaths)
   const searchMatches = searchJson(focusedNode, searchQuery)
+  const selectedMatchIndex = searchMatches.findIndex(
+    (match) => serializeJsonPath(match.node.path) === selectedPath,
+  )
+  const currentMatchPath =
+    selectedMatchIndex === -1
+      ? null
+      : serializeJsonPath(searchMatches[selectedMatchIndex]?.node.path ?? [])
+  const searchMatchPaths = new Set(
+    searchMatches.map((match) => serializeJsonPath(match.node.path)),
+  )
   const selectedNode =
     visibleNodes.find((node) => serializeJsonPath(node.path) === selectedPath) ?? focusedNode
   const selectedIndex = visibleNodes.findIndex(
@@ -332,13 +421,16 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     function handleGlobalKeyDown(event: globalThis.KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault()
+        if (pathDialogOpen) {
+          return
+        }
         setPaletteOpen(true)
       }
     }
 
     window.addEventListener("keydown", handleGlobalKeyDown)
     return () => window.removeEventListener("keydown", handleGlobalKeyDown)
-  }, [])
+  }, [pathDialogOpen])
 
   function setRowRef(path: string, element: HTMLDivElement | null) {
     if (element === null) {
@@ -555,7 +647,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <Breadcrumbs path={focusedPath} onNavigate={focusPath} />
-          <h2 id="tree-view-title" className="mt-2 font-heading text-title-sm text-ink">
+          <h2 id="tree-view-title" className="mt-2 font-heading text-lg font-medium text-ink">
             Tree View
           </h2>
           <p className="mt-1 text-body text-ink-subtle">Expand branches to inspect the structure.</p>
@@ -568,16 +660,18 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
             type="button"
             variant="outline"
             size="sm"
+            className="min-h-11 sm:min-h-7"
             onClick={() => setPathDialogOpen(true)}
             data-json-path-trigger
           >
             <SearchIcon data-icon="inline-start" aria-hidden />
-            Go to path
+            Go to JSONPath
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
+            className="min-h-11 sm:min-h-7"
             onClick={() => setPaletteOpen(true)}
             data-command-trigger
           >
@@ -592,15 +686,22 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
             type="button"
             variant="outline"
             size="sm"
+            className="min-h-11 sm:min-h-7"
             disabled={!isJsonContainerNode(selectedNode) || selectedPathKey === focusedPathKey}
             onClick={focusSelectedNode}
             data-focus-path
           >
             <FocusIcon data-icon="inline-start" aria-hidden />
-            Focus here
+            Focus branch
           </Button>
           {focusedPath.length > 0 && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => focusPath(root.path)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-h-11 sm:min-h-7"
+              onClick={() => focusPath(root.path)}
+            >
               Exit focus
             </Button>
           )}
@@ -608,6 +709,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
             type="button"
             variant="outline"
             size="sm"
+            className="min-h-11 sm:min-h-7"
             onClick={copySelectedPath}
             data-copy-path
           >
@@ -640,10 +742,12 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
             autoComplete="off"
             spellCheck={false}
             placeholder="Search keys and values"
+            aria-describedby="json-search-hint"
+            aria-keyshortcuts="Enter Shift+Enter"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.currentTarget.value)}
             onKeyDown={handleSearchKeyDown}
-            className="h-8 w-full rounded-md border border-hairline bg-canvas pr-9 pl-9 text-body text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="h-11 w-full rounded-md border border-hairline bg-canvas pr-11 pl-9 text-base text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:h-8 sm:pr-9 sm:text-body"
           />
           {searchQuery !== "" && (
             <Button
@@ -652,19 +756,52 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
               size="icon-xs"
               aria-label="Clear search"
               onClick={() => setSearchQuery("")}
-              className="absolute top-1/2 right-1 -translate-y-1/2 text-ink-subtle hover:text-ink"
+              className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-ink-subtle hover:text-ink sm:size-6"
             >
               <XIcon aria-hidden />
             </Button>
           )}
         </div>
-        <span
-          data-search-count
-          aria-live="polite"
-          className="min-w-20 font-mono text-caption text-ink-subtle"
-        >
-          {searchQuery === "" ? "" : searchCountLabel(searchMatches.length)}
-        </span>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+          <span
+            data-search-count
+            aria-live="polite"
+            className="min-w-20 font-mono text-caption text-ink-subtle"
+          >
+            {searchQuery === "" ? "" : searchCountLabel(searchMatches.length, selectedMatchIndex)}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-11 sm:size-7"
+              disabled={searchMatches.length === 0}
+              aria-label="Previous match"
+              title="Previous match"
+              onClick={() => moveToSearchMatch(-1)}
+              data-search-previous
+            >
+              <ChevronUpIcon aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-11 sm:size-7"
+              disabled={searchMatches.length === 0}
+              aria-label="Next match"
+              title="Next match"
+              onClick={() => moveToSearchMatch(1)}
+              data-search-next
+            >
+              <ChevronDownIcon aria-hidden />
+            </Button>
+          </div>
+          <span id="json-search-hint" className="text-caption text-ink-subtle">
+            Enter next · Shift+Enter previous
+          </span>
+        </div>
       </div>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto border-y border-hairline bg-surface">
         <ul
@@ -685,6 +822,10 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
                 node={node}
                 expandedPaths={expandedPaths}
                 selected={path === selectedPath}
+                matched={searchMatchPaths.has(path)}
+                currentMatch={path === currentMatchPath}
+                level={Math.max(1, node.depth - focusedNode.depth + 1)}
+                {...treeItemPosition(root, focusedNode, node)}
                 onToggle={togglePath}
                 onSelect={() => selectPath(path)}
                 onKeyDown={(event) => handleNodeKeyDown(event, node)}
@@ -704,6 +845,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
         </ul>
       </div>
       <CommandPalette
+        key={paletteOpen ? "open" : "closed"}
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         canFocus={isJsonContainerNode(selectedNode) && selectedPathKey !== focusedPathKey}
@@ -723,7 +865,12 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
         key={pathDialogOpen ? "open" : "closed"}
         open={pathDialogOpen}
         initialPath={formatJsonPath(selectedNode.path)}
-        onOpenChange={setPathDialogOpen}
+        onOpenChange={(open) => {
+          setPathDialogOpen(open)
+          if (open) {
+            setPaletteOpen(false)
+          }
+        }}
         onNavigate={navigateToPath}
       />
     </section>

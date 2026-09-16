@@ -33,12 +33,35 @@ test("renders a progressive tree and expands a branch with the keyboard", async 
   await expect(page.getByText("user", { exact: true })).toBeVisible()
   await expect(page.getByText("id", { exact: true })).toHaveCount(0)
 
-  const userToggle = page.getByRole("button", { name: "Expand user" })
-  await userToggle.press("Enter")
+  const userRow = page.getByRole("treeitem").filter({ hasText: "user" })
+  await userRow.press("Enter")
 
-  const collapseUserToggle = page.getByRole("button", { name: "Collapse user" })
-  await expect(collapseUserToggle).toHaveAttribute("aria-expanded", "true")
+  await expect(userRow).toHaveAttribute("aria-expanded", "true")
   await expect(page.getByText("id", { exact: true })).toBeVisible()
+})
+
+test("exposes relative levels and sibling positions in the JSON tree", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
+  await input.press("Enter")
+
+  const usersRow = page.getByRole("treeitem").filter({ hasText: "users" })
+  const metaRow = page.getByRole("treeitem").filter({ hasText: "meta" })
+  await expect(usersRow).toHaveAttribute("aria-level", "2")
+  await expect(usersRow).toHaveAttribute("aria-posinset", "1")
+  await expect(usersRow).toHaveAttribute("aria-setsize", "2")
+  await expect(metaRow).toHaveAttribute("aria-posinset", "2")
+
+  await usersRow.click()
+  await page.getByRole("button", { name: "Focus branch" }).click()
+  const focusedRoot = page.getByRole("treeitem").filter({ hasText: "users" })
+  await expect(focusedRoot).toHaveAttribute("aria-level", "1")
+
+  const itemRow = page.getByRole("treeitem").filter({ hasText: "[0]" })
+  await expect(itemRow).toHaveAttribute("aria-level", "2")
+  await expect(itemRow).toHaveAttribute("aria-posinset", "1")
+  await expect(itemRow).toHaveAttribute("aria-setsize", "1")
 })
 
 test("shows document statistics for the loaded JSON", async ({ page }) => {
@@ -87,7 +110,7 @@ test("keeps the JSONPath dialog open for an unknown node", async ({ page }) => {
   await input.fill('{"user":{"id":1}}')
   await input.press("Enter")
 
-  await page.getByRole("button", { name: "Go to path" }).click()
+  await page.getByRole("button", { name: "Go to JSONPath" }).click()
   const dialog = page.getByRole("dialog")
   const pathInput = dialog.getByRole("textbox", { name: "JSONPath" })
   await pathInput.fill("$.missing")
@@ -102,6 +125,22 @@ test("keeps the JSONPath dialog open for an unknown node", async ({ page }) => {
   await expect(page.locator("[data-selected-path]")).toHaveText("$.user.id")
 })
 
+test("does not stack the command palette over the JSONPath dialog", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"user":{"id":1}}')
+  await input.press("Enter")
+
+  await page.getByRole("button", { name: "Go to JSONPath" }).click()
+  const pathDialog = page.getByRole("dialog")
+  const pathInput = pathDialog.getByRole("textbox", { name: "JSONPath" })
+  await expect(pathInput).toBeFocused()
+
+  await page.keyboard.press("Control+k")
+  await expect(page.getByRole("dialog")).toHaveCount(1)
+  await expect(pathInput).toBeFocused()
+})
+
 test("leaves focus mode when JSONPath targets another branch", async ({ page }) => {
   await page.goto("/")
   const input = page.getByRole("textbox", { name: "Open JSON" })
@@ -109,10 +148,10 @@ test("leaves focus mode when JSONPath targets another branch", async ({ page }) 
   await input.press("Enter")
 
   await page.getByRole("treeitem").filter({ hasText: "users" }).click()
-  await page.getByRole("button", { name: "Focus here" }).click()
+  await page.getByRole("button", { name: "Focus branch" }).click()
   await expect(page.getByRole("button", { name: "Exit focus" })).toBeVisible()
 
-  await page.getByRole("button", { name: "Go to path" }).click()
+  await page.getByRole("button", { name: "Go to JSONPath" }).click()
   const dialog = page.getByRole("dialog")
   const pathInput = dialog.getByRole("textbox", { name: "JSONPath" })
   await pathInput.fill("$.meta.ok")
@@ -155,7 +194,7 @@ test("focuses a branch and returns through breadcrumbs", async ({ page }) => {
 
   const usersRow = page.getByRole("treeitem").filter({ hasText: "users" })
   await usersRow.click()
-  await page.getByRole("button", { name: "Focus here" }).click()
+  await page.getByRole("button", { name: "Focus branch" }).click()
 
   const breadcrumbs = page.getByRole("navigation", { name: "Breadcrumb" })
   await expect(breadcrumbs).toContainText("root")
@@ -177,12 +216,17 @@ test("searches keys and values and reveals each match", async ({ page }) => {
   const search = page.getByRole("searchbox", { name: "Search keys and values" })
   await search.fill("ada")
   await expect(page.locator("[data-search-count]")).toHaveText("2 matches")
+  await expect(page.getByRole("button", { name: "Previous match" })).toBeEnabled()
+  await expect(page.getByRole("button", { name: "Next match" })).toBeEnabled()
 
   await search.press("Enter")
   await expect(page.locator("[data-selected-path]")).toHaveText("$.users[0].name")
+  await expect(page.locator("[data-search-count]")).toHaveText("1 of 2 matches")
+  await expect(page.locator('[data-search-current="true"]')).toHaveCount(1)
 
   await search.press("Enter")
   await expect(page.locator("[data-selected-path]")).toHaveText("$.meta.owner")
+  await expect(page.locator("[data-search-count]")).toHaveText("2 of 2 matches")
 })
 
 test("scrolls to a search match outside the virtualized viewport", async ({ page }) => {
@@ -221,6 +265,34 @@ test("opens the command palette with Ctrl+K and sends a search query", async ({ 
   const search = page.getByRole("searchbox", { name: "Search keys and values" })
   await expect(search).toHaveValue("ada")
   await expect(page.locator("[data-search-count]")).toHaveText("1 match")
+
+  await page.keyboard.press("Control+k")
+  await expect(page.getByRole("combobox", { name: "Search commands" })).toHaveValue("")
+})
+
+test("keeps the loaded explorer usable at 320px with a long value", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 })
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const value = "x".repeat(1200)
+  await input.fill(JSON.stringify({ message: value }))
+  await input.press("Enter")
+
+  const dimensions = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }))
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth)
+
+  const row = page.getByRole("treeitem").filter({ hasText: "message" })
+  await expect(row).toBeVisible()
+  await expect(row.locator("span[title]").last()).toHaveAttribute("title", JSON.stringify(value))
+
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+  const closeButton = await page.getByRole("button", { name: "Close document" }).boundingBox()
+  expect(closeButton?.width).toBe(44)
+  expect(closeButton?.height).toBe(44)
+  expect(closeButton?.y).toBeGreaterThanOrEqual(0)
 })
 
 test("invalid JSON stays on the well with an error", async ({ page }) => {
@@ -236,4 +308,16 @@ test("invalid JSON stays on the well with an error", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("This isn't valid JSON.")
   await expect(page.getByRole("textbox", { name: "Open JSON" })).toHaveValue("{")
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible()
+})
+
+test("shows an error and preserves a pasted invalid JSON file", async ({ page }) => {
+  await page.goto("/")
+  await page.evaluate(() => {
+    const data = new DataTransfer()
+    data.items.add(new File(["{"], "broken.json", { type: "application/json" }))
+    window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true }))
+  })
+
+  await expect(page.getByRole("alert")).toContainText("This isn't valid JSON.")
+  await expect(page.getByRole("textbox", { name: "Open JSON" })).toHaveValue("{")
 })

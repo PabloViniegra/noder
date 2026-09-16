@@ -41,6 +41,17 @@ function previewSummary(draft: string): JsonSummary | null {
   return summarizeJson(text)
 }
 
+type LoadFile = (file: File) => Promise<void>
+
+function ingestFile(file: File, loadFile: LoadFile, setDraft: (draft: string) => void) {
+  void loadFile(file).then(() => {
+    const next = useDocumentStore.getState()
+    if (next.status === "error" && next.text !== null) {
+      setDraft(next.text)
+    }
+  })
+}
+
 export function EmptyState() {
   const status = useDocumentStore((s) => s.status)
   const error = useDocumentStore((s) => s.error)
@@ -59,15 +70,6 @@ export function EmptyState() {
   const settled = error === null || submitted === null || draft === submitted
   const shownError = settled ? error : null
   const showSummary = summary !== null && shownError === null && !busy
-
-  function ingestFile(file: File) {
-    void loadFile(file).then(() => {
-      const next = useDocumentStore.getState()
-      if (next.status === "error" && next.text !== null) {
-        setDraft(next.text)
-      }
-    })
-  }
 
   function ingestText(text: string, sourceName: string) {
     if (text.trim().length === 0) {
@@ -94,7 +96,7 @@ export function EmptyState() {
       const file = data.files.item(0)
       if (file !== null) {
         event.preventDefault()
-        void loadFile(file)
+        ingestFile(file, loadFile, setDraft)
         return
       }
       const text = data.getData("text")
@@ -139,7 +141,7 @@ export function EmptyState() {
     }
     const file = event.dataTransfer.files.item(0)
     if (file !== null) {
-      ingestFile(file)
+      ingestFile(file, loadFile, setDraft)
       return
     }
     ingestText(event.dataTransfer.getData("text"), "drop")
@@ -149,7 +151,7 @@ export function EmptyState() {
     const file = event.currentTarget.files?.item(0)
     event.currentTarget.value = ""
     if (file !== undefined && file !== null) {
-      ingestFile(file)
+      ingestFile(file, loadFile, setDraft)
     }
   }
 
@@ -278,7 +280,7 @@ export function EmptyState() {
                 onChange={onDraftChange}
                 onKeyDown={onDraftKeyDown}
                 className={cn(
-                  "min-h-28 w-full resize-none rounded-lg bg-canvas px-4 py-3 font-mono text-code text-ink caret-primary-hover outline-none transition-[border-color] duration-150 placeholder:text-json-punctuation [scrollbar-color:var(--hairline-strong)_transparent] sm:min-h-36",
+                  "min-h-28 w-full resize-none rounded-lg bg-canvas px-4 py-3 font-mono text-base text-ink caret-primary-hover outline-none transition-[border-color] duration-150 placeholder:text-json-punctuation [scrollbar-color:var(--hairline-strong)_transparent] sm:min-h-36 sm:text-code",
                   "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
                   "disabled:opacity-50",
                   shownError !== null ? "border border-destructive" : "border border-hairline",
