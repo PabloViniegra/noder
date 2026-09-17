@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import type { JsonNode, JsonPath } from "@/core/json/types"
 import { layoutMinimap } from "@/core/json/minimap"
-import { serializeJsonPath } from "@/core/json/path"
+import { formatJsonPath, serializeJsonPath } from "@/core/json/path"
 import { cn } from "@/lib/utils"
+
+const HEADER_PX = 20
+const HEADER_PX_COARSE = 28
+const MIN_BAND_PX = 16
+const DEPTH_INDENT_PX = 8
 
 type StructuralMinimapProps = {
   readonly root: JsonNode
@@ -23,8 +28,17 @@ export function StructuralMinimap({
   onSelectPath,
 }: StructuralMinimapProps) {
   const railRef = useRef<HTMLElement>(null)
-  const [minHeight, setMinHeight] = useState(1 / 250)
-  const segments = layoutMinimap(root, { minHeight })
+  const segmentRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [railHeight, setRailHeight] = useState(144)
+  const [coarsePointer] = useState(() => window.matchMedia("(pointer: coarse)").matches)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const minHeight = MIN_BAND_PX / Math.max(railHeight, 1)
+  const headerMin = (coarsePointer ? HEADER_PX_COARSE : HEADER_PX) / Math.max(railHeight, 1)
+  const segments = useMemo(
+    () => layoutMinimap(root, { minHeight, headerMin }),
+    [root, minHeight, headerMin],
+  )
+  const resolvedActiveIndex = Math.min(activeIndex, segments.length - 1)
 
   useEffect(() => {
     const node = railRef.current
@@ -32,57 +46,120 @@ export function StructuralMinimap({
       return
     }
 
-    setMinHeight(4 / Math.max(node.clientHeight, 1))
+    setRailHeight(Math.max(node.clientHeight, 1))
     const observer = new ResizeObserver((entries) => {
       const height = entries[0]?.contentRect.height ?? 1
-      setMinHeight(4 / Math.max(height, 1))
+      setRailHeight(Math.max(height, 1))
     })
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
 
-  return (
-    <section
-      ref={railRef}
-      aria-labelledby="structure-minimap-title"
-      data-structure-minimap
-      className="relative h-36 overflow-hidden rounded-lg border border-hairline bg-surface md:h-auto md:w-20 md:shrink-0 md:self-stretch"
-    >
-      <h3 id="structure-minimap-title" className="sr-only">
-        Structure minimap
-      </h3>
-      <div className="absolute inset-0">
-        {segments.map((segment) => {
-          const path = serializeJsonPath(segment.path)
-          const selected = path === selectedPath
-          const label = segmentLabel(segment.key)
+  function focusSegment(index: number) {
+    const next = Math.min(Math.max(index, 0), segments.length - 1)
+    setActiveIndex(next)
+    segmentRefs.current[next]?.focus()
+  }
 
-          return (
-            <button
-              key={path}
-              type="button"
-              tabIndex={-1}
-              title={`${label} · ${segment.size} ${segment.size === 1 ? "node" : "nodes"}`}
-              aria-label={`Select ${label}`}
-              aria-current={selected ? "true" : undefined}
-              data-minimap-path={path}
-              onClick={() => onSelectPath(segment.path)}
-              className={cn(
-                "absolute right-0 min-h-0 appearance-none overflow-hidden p-0 text-left outline-none",
-                "focus-visible:ring-2 focus-visible:ring-ring/40",
-                segment.depth % 2 === 0 ? "bg-surface-raised" : "bg-surface-high",
-                "hover:bg-surface-high",
-                selected && "bg-selection",
-              )}
-              style={{
-                top: `${segment.top * 100}%`,
-                height: `${segment.height * 100}%`,
-                left: `${segment.depth * 4}px`,
-              }}
-            />
-          )
-        })}
-      </div>
-    </section>
+  function handleSegmentKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault()
+        focusSegment(index + 1)
+        return
+      case "ArrowUp":
+        event.preventDefault()
+        focusSegment(index - 1)
+        return
+      case "Home":
+        event.preventDefault()
+        focusSegment(0)
+        return
+      case "End":
+        event.preventDefault()
+        focusSegment(segments.length - 1)
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-1 md:h-auto md:w-36 md:shrink-0 md:self-stretch",
+        coarsePointer ? "h-64" : "h-40",
+      )}
+    >
+      <h3
+        id="structure-minimap-title"
+        className="shrink-0 font-mono text-caption text-ink-subtle"
+      >
+        Structure
+      </h3>
+      <section
+        ref={railRef}
+        aria-labelledby="structure-minimap-title"
+        data-structure-minimap
+        className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-hairline bg-surface"
+      >
+        <div className="absolute inset-0">
+          {segments.map((segment, index) => {
+            const path = serializeJsonPath(segment.path)
+            const selected = path === selectedPath
+            const label = segmentLabel(segment.key)
+            const isRoot = segment.key === null
+            const accessibleLabel = isRoot
+              ? "Select root ($)"
+              : `Select ${label} (${formatJsonPath(segment.path)})`
+
+            return (
+              <button
+                key={path}
+                ref={(element) => {
+                  segmentRefs.current[index] = element
+                }}
+                type="button"
+                tabIndex={index === resolvedActiveIndex ? 0 : -1}
+                title={`${label} · ${segment.size} ${segment.size === 1 ? "node" : "nodes"}`}
+                aria-label={accessibleLabel}
+                aria-current={selected ? "true" : undefined}
+                data-minimap-path={path}
+                onFocus={() => setActiveIndex(index)}
+                onKeyDown={(event) => handleSegmentKeyDown(event, index)}
+                onClick={() => onSelectPath(segment.path)}
+                className={cn(
+                  "group absolute right-0 flex min-h-0 appearance-none items-start overflow-hidden p-0 text-left outline-none transition-colors",
+                  "focus-visible:ring-2 focus-visible:ring-ring/40",
+                  isRoot ? "bg-transparent" : "border-b border-hairline bg-surface-raised",
+                  segment.depth > 0 && [
+                    "border-l",
+                    selected ? "border-l-primary" : "border-l-hairline",
+                  ],
+                  "hover:bg-surface-high",
+                  selected && !isRoot && "bg-selection",
+                )}
+                style={{
+                  top: `${segment.top * 100}%`,
+                  height: `${segment.height * 100}%`,
+                  left: `${segment.depth * DEPTH_INDENT_PX}px`,
+                }}
+              >
+                <span className="flex min-w-0 items-baseline gap-1 px-1.5 pt-1 leading-none">
+                  <span
+                    className={cn(
+                      "truncate font-mono text-code transition-colors",
+                      selected ? "text-ink" : "text-json-key group-hover:text-ink",
+                    )}
+                  >
+                    {label}
+                  </span>
+                  <span className="shrink-0 font-mono text-code tabular-nums text-ink-subtle">
+                    {segment.size}
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+    </div>
   )
 }

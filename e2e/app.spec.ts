@@ -30,14 +30,15 @@ test("renders a progressive tree and expands a branch with the keyboard", async 
   await input.press("Enter")
 
   await expect(page.getByRole("heading", { name: "Tree View" })).toBeVisible()
-  await expect(page.getByText("user", { exact: true })).toBeVisible()
-  await expect(page.getByText("id", { exact: true })).toHaveCount(0)
+  const tree = page.getByRole("tree", { name: "JSON tree" })
+  await expect(tree.getByText("user", { exact: true })).toBeVisible()
+  await expect(tree.getByText("id", { exact: true })).toHaveCount(0)
 
   const userRow = page.getByRole("treeitem").filter({ hasText: "user" })
   await userRow.press("Enter")
 
   await expect(userRow).toHaveAttribute("aria-expanded", "true")
-  await expect(page.getByText("id", { exact: true })).toBeVisible()
+  await expect(tree.getByText("id", { exact: true })).toBeVisible()
 })
 
 test("exposes relative levels and sibling positions in the JSON tree", async ({ page }) => {
@@ -101,7 +102,7 @@ test("navigates to a nested node with JSONPath", async ({ page }) => {
 
   await expect(pathDialog).toBeHidden()
   await expect(page.locator("[data-selected-path]")).toHaveText('$["user-name"]["profile.name"]')
-  await expect(page.getByText("profile.name", { exact: true })).toBeVisible()
+  await expect(page.getByRole("tree", { name: "JSON tree" }).getByText("profile.name", { exact: true })).toBeVisible()
 })
 
 test("keeps the JSONPath dialog open for an unknown node", async ({ page }) => {
@@ -160,7 +161,7 @@ test("leaves focus mode when JSONPath targets another branch", async ({ page }) 
   await expect(dialog).toBeHidden()
   await expect(page.getByRole("button", { name: "Exit focus" })).toHaveCount(0)
   await expect(page.locator("[data-selected-path]")).toHaveText("$.meta.ok")
-  await expect(page.getByText("meta", { exact: true })).toBeVisible()
+  await expect(page.getByRole("tree", { name: "JSON tree" }).getByText("meta", { exact: true })).toBeVisible()
 })
 
 test("navigates tree rows and copies the selected JSONPath", async ({ page, context }) => {
@@ -199,11 +200,12 @@ test("focuses a branch and returns through breadcrumbs", async ({ page }) => {
   const breadcrumbs = page.getByRole("navigation", { name: "Breadcrumb" })
   await expect(breadcrumbs).toContainText("root")
   await expect(breadcrumbs).toContainText("users")
-  await expect(page.getByText("[0]", { exact: true })).toBeVisible()
-  await expect(page.getByText("meta", { exact: true })).toHaveCount(0)
+  const tree = page.getByRole("tree", { name: "JSON tree" })
+  await expect(tree.getByText("[0]", { exact: true })).toBeVisible()
+  await expect(tree.getByText("meta", { exact: true })).toHaveCount(0)
 
   await breadcrumbs.getByRole("button", { name: "root" }).click()
-  await expect(page.getByText("meta", { exact: true })).toBeVisible()
+  await expect(tree.getByText("meta", { exact: true })).toBeVisible()
   await expect(page.getByRole("button", { name: "Exit focus" })).toHaveCount(0)
 })
 
@@ -239,7 +241,7 @@ test("scrolls to a search match outside the virtualized viewport", async ({ page
   await input.press("Enter")
 
   await expect.poll(async () => page.getByRole("treeitem").count()).toBeLessThan(80)
-  const minimap = page.getByRole("region", { name: "Structure minimap" })
+  const minimap = page.getByRole("region", { name: "Structure" })
   const minimapBox = await minimap.boundingBox()
   const viewport = page.viewportSize()
   expect(minimapBox).not.toBeNull()
@@ -327,8 +329,10 @@ test("selects a heavier branch from the structure minimap", async ({ page }) => 
   await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
   await input.press("Enter")
 
-  const minimap = page.getByRole("region", { name: "Structure minimap" })
+  const minimap = page.getByRole("region", { name: "Structure" })
   await expect(minimap).toBeVisible()
+  await expect(minimap.getByText("users", { exact: true })).toBeVisible()
+  await expect(minimap.getByText("meta", { exact: true })).toBeVisible()
 
   const usersSlab = minimap.getByRole("button", { name: "Select users" })
   const metaSlab = minimap.getByRole("button", { name: "Select meta" })
@@ -354,9 +358,34 @@ test("zooms the structure minimap to the focused branch", async ({ page }) => {
   await page.getByRole("treeitem").filter({ hasText: "users" }).click()
   await page.getByRole("button", { name: "Focus branch" }).click()
 
-  const minimap = page.getByRole("region", { name: "Structure minimap" })
+  const minimap = page.getByRole("region", { name: "Structure" })
   await expect(minimap.getByRole("button", { name: "Select users" })).toBeVisible()
   await expect(minimap.getByRole("button", { name: "Select meta" })).toHaveCount(0)
+})
+
+test("navigates and selects minimap segments with the keyboard", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
+  await input.press("Enter")
+
+  const minimap = page.getByRole("region", { name: "Structure" })
+  const root = minimap.getByRole("button", { name: "Select root" })
+  await root.focus()
+  await expect(root).toBeFocused()
+
+  await root.press("ArrowDown")
+  await expect(minimap.getByRole("button", { name: "Select users" })).toBeFocused()
+
+  await page.keyboard.press("ArrowDown")
+  await expect(minimap.getByRole("button", { name: "Select [0]" })).toBeFocused()
+
+  await page.keyboard.press("End")
+  await expect(minimap.getByRole("button", { name: "Select meta" })).toBeFocused()
+
+  await page.keyboard.press("Home")
+  await page.keyboard.press("Enter")
+  await expect(page.locator("[data-selected-path]")).toHaveText("$")
 })
 
 test("shows an error and preserves a pasted invalid JSON file", async ({ page }) => {

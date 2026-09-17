@@ -804,7 +804,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
           </span>
         </div>
       </div>
-      <div className="flex flex-col-reverse gap-4 md:min-h-0 md:flex-1 md:flex-row">
+      <div className="flex flex-col gap-4 md:min-h-0 md:flex-1 md:flex-row">
         <div
           ref={scrollRef}
           className="min-h-0 min-w-0 flex-1 overflow-auto border-y border-hairline bg-surface"

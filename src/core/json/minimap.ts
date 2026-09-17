@@ -13,6 +13,7 @@ export type MinimapSegment = {
 
 export type MinimapLayoutOptions = {
   readonly minHeight?: number
+  readonly headerMin?: number
 }
 
 const defaultMinHeight = 1 / 250
@@ -22,6 +23,7 @@ export function layoutMinimap(
   options: MinimapLayoutOptions = {},
 ): readonly MinimapSegment[] {
   const minHeight = options.minHeight ?? defaultMinHeight
+  const headerMin = options.headerMin ?? 0
   const sizes = nodeSizes(root)
   const segments: MinimapSegment[] = []
 
@@ -47,14 +49,19 @@ export function layoutMinimap(
       return
     }
 
-    let cursor = top + height / size
+    const naturalHeader = height / size
+    const header = Math.min(height, Math.max(naturalHeader, headerMin))
+    const naturalChildSpace = height - naturalHeader
+    const childScale = naturalChildSpace > 0 ? (height - header) / naturalChildSpace : 0
+
+    let cursor = top + header
     for (const child of node.children) {
       const childSize = sizes.get(child)
       if (childSize === undefined) {
         continue
       }
 
-      const childHeight = height * (childSize / size)
+      const childHeight = height * (childSize / size) * childScale
       if (childHeight >= minHeight) {
         walk(child, cursor, childHeight, depth + 1)
       }

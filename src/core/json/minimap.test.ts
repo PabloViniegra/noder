@@ -121,4 +121,26 @@ describe("layoutMinimap", () => {
     expect(segments.map((segment) => segment.key)).toEqual([null, "b"])
     expect(segments[1]?.height).toBeGreaterThan(0.5)
   })
+
+  it("reserves a minimum header so nested containers stay clickable", () => {
+    const segments = layoutMinimap(
+      parsedRoot('{"big":{"a":{"b":1},"c":2},"small":{"d":3}}'),
+      { minHeight: 0, headerMin: 0.3 },
+    )
+
+    const [root, big, a, small] = segments
+    expect(root?.top).toBe(0)
+    expect(root?.height).toBe(1)
+    expect(big?.top).toBeCloseTo(0.3, 5)
+    expect(a?.top).toBeCloseTo(0.6, 5)
+    expect((small?.top ?? 0) + (small?.height ?? 0)).toBeCloseTo(1, 5)
+  })
+
+  it("keeps the mass layout unchanged when headerMin is omitted", () => {
+    const doc = '{"big":{"a":{"b":1},"c":2},"small":{"d":3}}'
+    const withDefault = layoutMinimap(parsedRoot(doc), { minHeight: 0 })
+    const withZero = layoutMinimap(parsedRoot(doc), { minHeight: 0, headerMin: 0 })
+
+    expect(withZero).toEqual(withDefault)
+  })
 })
