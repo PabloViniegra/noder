@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest"
+import { parseJson } from "./parse"
+import { getJsonNodeAtPath } from "./traverse"
+import { layoutMinimap } from "./minimap"
+import type { JsonNode } from "./types"
+
+function parsedRoot(text: string): JsonNode {
+  const result = parseJson(text)
+  expect(result.ok).toBe(true)
+  if (!result.ok) {
+    throw new Error("expected a parsed document")
+  }
+  return result.document.root
+}
+
+describe("layoutMinimap", () => {
+  it("maps a primitive root to a single full-height slab", () => {
+    const segments = layoutMinimap(parsedRoot("null"), { minHeight: 0 })
+
+    expect(segments).toEqual([
+      {
+        path: [],
+        key: null,
+        kind: "null",
+        size: 1,
+        depth: 0,
+        top: 0,
+        height: 1,
+      },
+    ])
+  })
+
+  it("sizes sibling branches by subtree mass and reserves a root header", () => {
+    const segments = layoutMinimap(
+      parsedRoot('{"small":{"n":1},"big":{"a":1,"b":2,"c":3}}'),
+      { minHeight: 0 },
+    )
+
+    expect(segments).toEqual([
+      {
+        path: [],
+        key: null,
+        kind: "object",
+        size: 7,
+        depth: 0,
+        top: 0,
+        height: 1,
+      },
+      {
+        path: ["small"],
+        key: "small",
+        kind: "object",
+        size: 2,
+        depth: 1,
+        top: 1 / 7,
+        height: 2 / 7,
+      },
+      {
+        path: ["big"],
+        key: "big",
+        kind: "object",
+        size: 4,
+        depth: 1,
+        top: 3 / 7,
+        height: 4 / 7,
+      },
+    ])
+  })
+
+  it("nests container descendants and skips scalar leaves", () => {
+    const segments = layoutMinimap(parsedRoot('{"user":{"id":1}}'), { minHeight: 0 })
+
+    expect(segments).toEqual([
+      {
+        path: [],
+        key: null,
+        kind: "object",
+        size: 3,
+        depth: 0,
+        top: 0,
+        height: 1,
+      },
+      {
+        path: ["user"],
+        key: "user",
+        kind: "object",
+        size: 2,
+        depth: 1,
+        top: 1 / 3,
+        height: 2 / 3,
+      },
+    ])
+  })
+
+  it("starts depth at the layout root so focus mode can zoom", () => {
+    const root = parsedRoot('{"users":[{"id":1}],"meta":true}')
+    const users = getJsonNodeAtPath(root, ["users"])
+    expect(users).not.toBeNull()
+    if (users === null) {
+      throw new Error("expected users node")
+    }
+
+    const segments = layoutMinimap(users, { minHeight: 0 })
+
+    expect(segments[0]).toMatchObject({
+      path: ["users"],
+      key: "users",
+      depth: 0,
+      top: 0,
+      height: 1,
+    })
+    expect(segments.some((segment) => segment.key === "meta")).toBe(false)
+  })
+
+  it("omits slabs shorter than minHeight without dropping heavier siblings", () => {
+    const segments = layoutMinimap(
+      parsedRoot('{"a":1,"b":{"c":{"d":1},"e":{"f":1}}}'),
+      { minHeight: 0.5 },
+    )
+
+    expect(segments.map((segment) => segment.key)).toEqual([null, "b"])
+    expect(segments[1]?.height).toBeGreaterThan(0.5)
+  })
+})

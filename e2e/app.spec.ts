@@ -238,6 +238,17 @@ test("scrolls to a search match outside the virtualized viewport", async ({ page
   await input.fill(JSON.stringify(payload))
   await input.press("Enter")
 
+  await expect.poll(async () => page.getByRole("treeitem").count()).toBeLessThan(80)
+  const minimap = page.getByRole("region", { name: "Structure minimap" })
+  const minimapBox = await minimap.boundingBox()
+  const viewport = page.viewportSize()
+  expect(minimapBox).not.toBeNull()
+  expect(viewport).not.toBeNull()
+  expect(minimapBox?.y ?? 0).toBeGreaterThanOrEqual(0)
+  expect((minimapBox?.y ?? 0) + (minimapBox?.height ?? 0)).toBeLessThanOrEqual(
+    (viewport?.height ?? 0) + 1,
+  )
+
   const search = page.getByRole("searchbox", { name: "Search keys and values" })
   await search.fill("target")
   await search.press("Enter")
@@ -308,6 +319,44 @@ test("invalid JSON stays on the well with an error", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("This isn't valid JSON.")
   await expect(page.getByRole("textbox", { name: "Open JSON" })).toHaveValue("{")
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible()
+})
+
+test("selects a heavier branch from the structure minimap", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
+  await input.press("Enter")
+
+  const minimap = page.getByRole("region", { name: "Structure minimap" })
+  await expect(minimap).toBeVisible()
+
+  const usersSlab = minimap.getByRole("button", { name: "Select users" })
+  const metaSlab = minimap.getByRole("button", { name: "Select meta" })
+  const usersBox = await usersSlab.boundingBox()
+  const metaBox = await metaSlab.boundingBox()
+  expect(usersBox).not.toBeNull()
+  expect(metaBox).not.toBeNull()
+  expect(usersBox?.height ?? 0).toBeGreaterThan(metaBox?.height ?? 0)
+
+  await usersSlab.click({ position: { x: 2, y: 2 } })
+  await expect(page.locator("[data-selected-path]")).toHaveText("$.users")
+  await expect(page.getByRole("treeitem").filter({ hasText: "[0]" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Exit focus" })).toHaveCount(0)
+  await expect(minimap.getByRole("button", { name: "Select meta" })).toBeVisible()
+})
+
+test("zooms the structure minimap to the focused branch", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
+  await input.press("Enter")
+
+  await page.getByRole("treeitem").filter({ hasText: "users" }).click()
+  await page.getByRole("button", { name: "Focus branch" }).click()
+
+  const minimap = page.getByRole("region", { name: "Structure minimap" })
+  await expect(minimap.getByRole("button", { name: "Select users" })).toBeVisible()
+  await expect(minimap.getByRole("button", { name: "Select meta" })).toHaveCount(0)
 })
 
 test("shows an error and preserves a pasted invalid JSON file", async ({ page }) => {

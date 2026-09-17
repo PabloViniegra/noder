@@ -42,6 +42,7 @@ import {
 import { searchJson } from "@/core/json/search"
 import { CommandPalette } from "@/features/explorer/command-palette"
 import { JsonPathDialog } from "@/features/explorer/json-path-dialog"
+import { StructuralMinimap } from "@/features/explorer/structural-minimap"
 import { cn } from "@/lib/utils"
 
 type ContainerNode = JsonObjectNode | JsonArrayNode
@@ -642,7 +643,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   return (
     <section
       aria-labelledby="tree-view-title"
-      className="flex min-h-[calc(100svh-5rem)] flex-col gap-4"
+      className="flex min-h-[calc(100svh-5rem)] flex-col gap-4 md:h-[calc(100svh-5rem)]"
     >
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
@@ -803,46 +804,56 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
           </span>
         </div>
       </div>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto border-y border-hairline bg-surface">
-        <ul
-          role="tree"
-          aria-label="JSON tree"
-          className="relative m-0 list-none p-0"
-          style={{ height: rowVirtualizer.getTotalSize() }}
+      <div className="flex flex-col-reverse gap-4 md:min-h-0 md:flex-1 md:flex-row">
+        <div
+          ref={scrollRef}
+          className="min-h-0 min-w-0 flex-1 overflow-auto border-y border-hairline bg-surface"
         >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const node = visibleNodes[virtualRow.index]
-            if (node === undefined) {
-              return null
-            }
-            const path = serializeJsonPath(node.path)
-            return (
-              <TreeRow
-                key={virtualRow.key}
-                node={node}
-                expandedPaths={expandedPaths}
-                selected={path === selectedPath}
-                matched={searchMatchPaths.has(path)}
-                currentMatch={path === currentMatchPath}
-                level={Math.max(1, node.depth - focusedNode.depth + 1)}
-                {...treeItemPosition(root, focusedNode, node)}
-                onToggle={togglePath}
-                onSelect={() => selectPath(path)}
-                onKeyDown={(event) => handleNodeKeyDown(event, node)}
-                rowRef={(element) => setRowRef(path, element)}
-                index={virtualRow.index}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              />
-            )
-          })}
-        </ul>
+          <ul
+            role="tree"
+            aria-label="JSON tree"
+            className="relative m-0 list-none p-0"
+            style={{ height: rowVirtualizer.getTotalSize() }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const node = visibleNodes[virtualRow.index]
+              if (node === undefined) {
+                return null
+              }
+              const path = serializeJsonPath(node.path)
+              return (
+                <TreeRow
+                  key={virtualRow.key}
+                  node={node}
+                  expandedPaths={expandedPaths}
+                  selected={path === selectedPath}
+                  matched={searchMatchPaths.has(path)}
+                  currentMatch={path === currentMatchPath}
+                  level={Math.max(1, node.depth - focusedNode.depth + 1)}
+                  {...treeItemPosition(root, focusedNode, node)}
+                  onToggle={togglePath}
+                  onSelect={() => selectPath(path)}
+                  onKeyDown={(event) => handleNodeKeyDown(event, node)}
+                  rowRef={(element) => setRowRef(path, element)}
+                  index={virtualRow.index}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                />
+              )
+            })}
+          </ul>
+        </div>
+        <StructuralMinimap
+          root={focusedNode}
+          selectedPath={selectedPath}
+          onSelectPath={revealPath}
+        />
       </div>
       <CommandPalette
         key={paletteOpen ? "open" : "closed"}
