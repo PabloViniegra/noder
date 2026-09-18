@@ -14,6 +14,8 @@ pnpm build
 pnpm lint
 pnpm test
 pnpm test:e2e
+pnpm test:perf
+pnpm test:perf:core
 ```
 
 ## Layout

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { parseJson } from "./parse"
-import { flattenVisibleNodes, getJsonNodeAtPath } from "./traverse"
-import { serializeJsonPath } from "./path"
+import { flattenVisibleNodes, getJsonChildPosition, getJsonNodeAtPath } from "./traverse"
 
 describe("flattenVisibleNodes", () => {
   it("keeps the root visible while descendants stay collapsed", () => {
@@ -25,11 +24,13 @@ describe("flattenVisibleNodes", () => {
       throw new Error("expected a parsed document")
     }
 
-    const expandedPaths = new Set([
-      serializeJsonPath([]),
-      serializeJsonPath(["user"]),
-    ])
-    const visible = flattenVisibleNodes(result.document.root, expandedPaths)
+    const user = getJsonNodeAtPath(result.document.root, ["user"])
+    expect(user).not.toBeNull()
+    if (user === null) {
+      throw new Error("expected the user node")
+    }
+
+    const visible = flattenVisibleNodes(result.document.root, new Set([result.document.root, user]))
 
     expect(visible.map((node) => node.path)).toEqual([
       [],
@@ -49,5 +50,22 @@ describe("flattenVisibleNodes", () => {
 
     expect(getJsonNodeAtPath(result.document.root, ["user", "id"])?.kind).toBe("number")
     expect(getJsonNodeAtPath(result.document.root, ["missing"])).toBeNull()
+  })
+
+  it("resolves a child position from the same indexed container", () => {
+    const result = parseJson('{"first":true,"second":false}')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      throw new Error("expected a parsed document")
+    }
+
+    const second = getJsonNodeAtPath(result.document.root, ["second"])
+    expect(second).not.toBeNull()
+    if (second === null) {
+      throw new Error("expected the second child")
+    }
+
+    expect(getJsonChildPosition(result.document.root, second)).toBe(1)
   })
 })

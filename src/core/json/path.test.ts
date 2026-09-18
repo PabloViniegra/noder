@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { formatJsonPath, isJsonPathWithin, parentJsonPath, parseJsonPath } from "./path"
+import {
+  formatJsonPath,
+  isJsonPathWithin,
+  jsonPathsEqual,
+  parentJsonPath,
+  parseJsonPath,
+} from "./path"
 
 describe("JSON paths", () => {
   it("formats object keys and array indexes as JSONPath", () => {
@@ -34,5 +40,7 @@ describe("JSON paths", () => {
     expect(isJsonPathWithin(["users", 0, "profile"], ["users", 0])).toBe(true)
     expect(isJsonPathWithin(["users", 0], ["users", 0])).toBe(true)
     expect(isJsonPathWithin(["settings"], ["users"])).toBe(false)
+    expect(jsonPathsEqual(["users", 0], ["users", 0])).toBe(true)
+    expect(jsonPathsEqual(["users", 0], ["users", 1])).toBe(false)
   })
 })

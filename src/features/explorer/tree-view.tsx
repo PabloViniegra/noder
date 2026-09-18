@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -30,12 +31,14 @@ import type {
 import {
   formatJsonPath,
   isJsonPathWithin,
+  jsonPathsEqual,
   parseJsonPath,
   parentJsonPath,
   serializeJsonPath,
 } from "@/core/json/path"
 import {
   flattenVisibleNodes,
+  getJsonChildPosition,
   getJsonNodeAtPath,
   isJsonContainerNode,
 } from "@/core/json/traverse"
@@ -60,14 +63,14 @@ type TreeViewProps = {
 
 type TreeRowProps = {
   readonly node: JsonNode
-  readonly expandedPaths: ReadonlySet<string>
+  readonly expanded: boolean
   readonly selected: boolean
   readonly matched: boolean
   readonly currentMatch: boolean
   readonly level: number
   readonly positionInSet: number
   readonly setSize: number
-  readonly onToggle: (path: string) => void
+  readonly onToggle: () => void
   readonly onSelect: () => void
   readonly onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void
   readonly rowRef: (element: HTMLDivElement | null) => void
@@ -137,7 +140,7 @@ function treeItemPosition(
   treeRoot: JsonNode,
   node: JsonNode,
 ): TreeItemPosition {
-  if (serializeJsonPath(node.path) === serializeJsonPath(treeRoot.path)) {
+  if (jsonPathsEqual(node.path, treeRoot.path)) {
     return { positionInSet: 1, setSize: 1 }
   }
 
@@ -147,9 +150,7 @@ function treeItemPosition(
     return { positionInSet: 1, setSize: 1 }
   }
 
-  const position = parent.children.findIndex(
-    (sibling) => serializeJsonPath(sibling.path) === serializeJsonPath(node.path),
-  )
+  const position = getJsonChildPosition(parent, node)
   return {
     positionInSet: position === -1 ? 1 : position + 1,
     setSize: parent.children.length,
@@ -262,7 +263,7 @@ function DocumentStats({ stats }: DocumentStatsProps) {
 
 function TreeRow({
   node,
-  expandedPaths,
+  expanded,
   selected,
   matched,
   currentMatch,
@@ -278,8 +279,6 @@ function TreeRow({
 }: TreeRowProps) {
   const container = isJsonContainerNode(node)
   const expandable = container && node.children.length > 0
-  const path = serializeJsonPath(node.path)
-  const expanded = expandedPaths.has(path)
   const label = nodeName(node)
 
   return (
@@ -302,7 +301,7 @@ function TreeRow({
               ? event.target.closest("[data-tree-disclosure]")
               : null
           if (expandable && disclosure !== null) {
-            onToggle(path)
+            onToggle()
             return
           }
           onSelect()
@@ -365,34 +364,39 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const searchRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef(new Map<string, HTMLDivElement>())
   const [focusedPath, setFocusedPath] = useState<JsonPath>(() => root.path)
-  const [expandedPaths, setExpandedPaths] = useState<ReadonlySet<string>>(
-    () => new Set([serializeJsonPath(root.path)]),
-  )
-  const [selectedPath, setSelectedPath] = useState(() => serializeJsonPath(root.path))
+  const [expandedNodes, setExpandedNodes] = useState<ReadonlySet<JsonNode>>(() => new Set([root]))
+  const [selectedPath, setSelectedPath] = useState<JsonPath>(() => root.path)
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle")
   const [searchQuery, setSearchQuery] = useState("")
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [pathDialogOpen, setPathDialogOpen] = useState(false)
   const focusedNode = getJsonNodeAtPath(root, focusedPath) ?? root
-  const visibleNodes = flattenVisibleNodes(focusedNode, expandedPaths)
-  const searchMatches = searchJson(focusedNode, searchQuery)
-  const selectedMatchIndex = searchMatches.findIndex(
-    (match) => serializeJsonPath(match.node.path) === selectedPath,
+  const visibleNodes = useMemo(
+    () => flattenVisibleNodes(focusedNode, expandedNodes),
+    [expandedNodes, focusedNode],
   )
-  const currentMatchPath =
-    selectedMatchIndex === -1
-      ? null
-      : serializeJsonPath(searchMatches[selectedMatchIndex]?.node.path ?? [])
-  const searchMatchPaths = new Set(
-    searchMatches.map((match) => serializeJsonPath(match.node.path)),
+  const visibleIndexByNode = useMemo(() => {
+    const index = new Map<JsonNode, number>()
+    visibleNodes.forEach((node, nodeIndex) => {
+      index.set(node, nodeIndex)
+    })
+    return index
+  }, [visibleNodes])
+  const searchMatches = useMemo(
+    () => searchJson(focusedNode, searchQuery),
+    [focusedNode, searchQuery],
   )
-  const selectedNode =
-    visibleNodes.find((node) => serializeJsonPath(node.path) === selectedPath) ?? focusedNode
-  const selectedIndex = visibleNodes.findIndex(
-    (node) => serializeJsonPath(node.path) === selectedPath,
+  const searchMatchNodes = useMemo(
+    () => new Set(searchMatches.map((match) => match.node)),
+    [searchMatches],
   )
+  const selectedMatchIndex = searchMatches.findIndex((match) =>
+    jsonPathsEqual(match.node.path, selectedPath),
+  )
+  const selectedNode = getJsonNodeAtPath(root, selectedPath) ?? focusedNode
+  const selectedIndex = visibleIndexByNode.get(selectedNode) ?? -1
   const focusedPathKey = serializeJsonPath(focusedPath)
-  const selectedPathKey = serializeJsonPath(selectedNode.path)
+  const selectedPathKey = serializeJsonPath(selectedPath)
   const rowVirtualizer = useVirtualizer({
     count: visibleNodes.length,
     getScrollElement: () => scrollRef.current,
@@ -413,10 +417,10 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
 
     rowVirtualizer.scrollToIndex(selectedIndex, { align: "auto" })
     const focusFrame = window.requestAnimationFrame(() => {
-      rowRefs.current.get(selectedPath)?.focus()
+      rowRefs.current.get(selectedPathKey)?.focus()
     })
     return () => window.cancelAnimationFrame(focusFrame)
-  }, [rowVirtualizer, selectedIndex, selectedPath])
+  }, [rowVirtualizer, selectedIndex, selectedPathKey])
 
   useEffect(() => {
     function handleGlobalKeyDown(event: globalThis.KeyboardEvent) {
@@ -441,16 +445,16 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     }
   }
 
-  function selectPath(path: string) {
+  function selectPath(path: JsonPath) {
     setSelectedPath(path)
     setCopyStatus("idle")
   }
 
   function focusPath(path: JsonPath) {
-    const key = serializeJsonPath(path)
-    setFocusedPath(path)
-    setExpandedPaths(new Set([key]))
-    setSelectedPath(key)
+    const node = getJsonNodeAtPath(root, path) ?? root
+    setFocusedPath(node.path)
+    setExpandedNodes(new Set([node]))
+    setSelectedPath(node.path)
     setCopyStatus("idle")
   }
 
@@ -462,12 +466,15 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   }
 
   function revealPath(path: JsonPath) {
-    const nextExpandedPaths = new Set(expandedPaths)
+    const nextExpandedNodes = new Set(expandedNodes)
     for (let length = focusedPath.length; length <= path.length; length += 1) {
-      nextExpandedPaths.add(serializeJsonPath(path.slice(0, length)))
+      const ancestor = getJsonNodeAtPath(root, path.slice(0, length))
+      if (ancestor !== null) {
+        nextExpandedNodes.add(ancestor)
+      }
     }
-    setExpandedPaths(nextExpandedPaths)
-    selectPath(serializeJsonPath(path))
+    setExpandedNodes(nextExpandedNodes)
+    selectPath(path)
   }
 
   function navigateToPath(input: string): string | null {
@@ -482,18 +489,20 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     }
 
     const nextFocusedPath = isJsonPathWithin(result.path, focusedPath) ? focusedPath : root.path
-    const nextFocusedPathKey = serializeJsonPath(nextFocusedPath)
-    const nextExpandedPaths =
-      nextFocusedPathKey === focusedPathKey
-        ? new Set(expandedPaths)
-        : new Set([nextFocusedPathKey])
+    const nextFocusedNode = getJsonNodeAtPath(root, nextFocusedPath) ?? root
+    const nextExpandedNodes = jsonPathsEqual(nextFocusedPath, focusedPath)
+      ? new Set(expandedNodes)
+      : new Set([nextFocusedNode])
 
     for (let length = nextFocusedPath.length; length <= result.path.length; length += 1) {
-      nextExpandedPaths.add(serializeJsonPath(result.path.slice(0, length)))
+      const ancestor = getJsonNodeAtPath(root, result.path.slice(0, length))
+      if (ancestor !== null) {
+        nextExpandedNodes.add(ancestor)
+      }
     }
     setFocusedPath(nextFocusedPath)
-    setExpandedPaths(nextExpandedPaths)
-    selectPath(serializeJsonPath(result.path))
+    setExpandedNodes(nextExpandedNodes)
+    selectPath(result.path)
     return null
   }
 
@@ -502,8 +511,8 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
       return
     }
 
-    const currentIndex = searchMatches.findIndex(
-      (match) => serializeJsonPath(match.node.path) === selectedPath,
+    const currentIndex = searchMatches.findIndex((match) =>
+      jsonPathsEqual(match.node.path, selectedPath),
     )
     const nextIndex =
       currentIndex === -1
@@ -517,38 +526,32 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     }
   }
 
-  function togglePath(path: string) {
-    const toggledNode = visibleNodes.find((node) => serializeJsonPath(node.path) === path)
-    if (expandedPaths.has(path)) {
-      if (toggledNode !== undefined && isJsonPathWithin(selectedNode.path, toggledNode.path)) {
-        selectPath(path)
-      }
+  function togglePath(node: JsonNode) {
+    if (expandedNodes.has(node) && isJsonPathWithin(selectedPath, node.path)) {
+      selectPath(node.path)
     }
 
-    setExpandedPaths((current) => {
+    setExpandedNodes((current) => {
       const next = new Set(current)
-      if (next.has(path)) {
-        next.delete(path)
+      if (next.has(node)) {
+        next.delete(node)
       } else {
-        next.add(path)
+        next.add(node)
       }
       return next
     })
   }
 
   function moveSelection(index: number) {
-    const currentIndex = visibleNodes.findIndex(
-      (node) => serializeJsonPath(node.path) === selectedPath,
-    )
+    const currentIndex = selectedIndex === -1 ? 0 : selectedIndex
     const nextIndex = Math.min(Math.max(currentIndex + index, 0), visibleNodes.length - 1)
     const nextNode = visibleNodes[nextIndex]
     if (nextNode !== undefined) {
-      selectPath(serializeJsonPath(nextNode.path))
+      selectPath(nextNode.path)
     }
   }
 
   function handleNodeKeyDown(event: KeyboardEvent<HTMLDivElement>, node: JsonNode) {
-    const path = serializeJsonPath(node.path)
     const container = isJsonContainerNode(node)
     const expandable = container && node.children.length > 0
 
@@ -574,21 +577,21 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
           return
         }
         event.preventDefault()
-        if (!expandedPaths.has(path)) {
-          togglePath(path)
+        if (!expandedNodes.has(node)) {
+          togglePath(node)
           return
         }
         if (node.children[0] !== undefined) {
-          selectPath(serializeJsonPath(node.children[0].path))
+          selectPath(node.children[0].path)
         }
         return
       case "ArrowLeft":
-        if (container && expandedPaths.has(path)) {
+        if (container && expandedNodes.has(node)) {
           event.preventDefault()
-          togglePath(path)
+          togglePath(node)
           return
         }
-        if (path === focusedPathKey && focusedPath.length > 0) {
+        if (jsonPathsEqual(node.path, focusedPath) && focusedPath.length > 0) {
           event.preventDefault()
           focusPath(root.path)
           return
@@ -597,7 +600,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
           const parent = parentJsonPath(node.path)
           if (parent !== null) {
             event.preventDefault()
-            selectPath(serializeJsonPath(parent))
+            selectPath(parent)
           }
         }
         return
@@ -605,7 +608,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
       case " ":
         if (expandable) {
           event.preventDefault()
-          togglePath(path)
+          togglePath(node)
         }
     }
   }
@@ -825,14 +828,16 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
                 <TreeRow
                   key={virtualRow.key}
                   node={node}
-                  expandedPaths={expandedPaths}
-                  selected={path === selectedPath}
-                  matched={searchMatchPaths.has(path)}
-                  currentMatch={path === currentMatchPath}
+                  expanded={expandedNodes.has(node)}
+                  selected={jsonPathsEqual(node.path, selectedPath)}
+                  matched={searchMatchNodes.has(node)}
+                  currentMatch={
+                    selectedMatchIndex !== -1 && jsonPathsEqual(node.path, selectedPath)
+                  }
                   level={Math.max(1, node.depth - focusedNode.depth + 1)}
                   {...treeItemPosition(root, focusedNode, node)}
-                  onToggle={togglePath}
-                  onSelect={() => selectPath(path)}
+                  onToggle={() => togglePath(node)}
+                  onSelect={() => selectPath(node.path)}
                   onKeyDown={(event) => handleNodeKeyDown(event, node)}
                   rowRef={(element) => setRowRef(path, element)}
                   index={virtualRow.index}
@@ -851,7 +856,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
         </div>
         <StructuralMinimap
           root={focusedNode}
-          selectedPath={selectedPath}
+          selectedPath={selectedPathKey}
           onSelectPath={revealPath}
         />
       </div>

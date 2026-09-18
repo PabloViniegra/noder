@@ -84,6 +84,10 @@ export function isJsonPathWithin(path: JsonPath, ancestor: JsonPath): boolean {
   )
 }
 
+export function jsonPathsEqual(left: JsonPath, right: JsonPath): boolean {
+  return left.length === right.length && isJsonPathWithin(left, right)
+}
+
 function isJsonPathIndex(segment: string | number): segment is number {
   return Object.prototype.toString.call(segment) === "[object Number]"
 }
