@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils"
 
 const HEADER_PX = 20
 const HEADER_PX_COARSE = 28
-const MIN_BAND_PX = 24
+const MIN_BAND_PX = 18
+const MIN_BAND_PX_COARSE = 24
 const DEPTH_INDENT_PX = 8
 
 type StructuralMinimapProps = {
@@ -36,7 +37,8 @@ export function StructuralMinimap({
   const [railHeight, setRailHeight] = useState(144)
   const [coarsePointer] = useState(() => window.matchMedia("(pointer: coarse)").matches)
   const [activeIndex, setActiveIndex] = useState(0)
-  const minHeight = MIN_BAND_PX / Math.max(railHeight, 1)
+  const minHeight =
+    (coarsePointer ? MIN_BAND_PX_COARSE : MIN_BAND_PX) / Math.max(railHeight, 1)
   const headerMin = (coarsePointer ? HEADER_PX_COARSE : HEADER_PX) / Math.max(railHeight, 1)
   const segments = useMemo(
     () => layoutMinimap(root, { minHeight, headerMin }),
@@ -128,14 +130,14 @@ export function StructuralMinimap({
                 onClick={() => onSelectPath(segment.path)}
                 className={cn(
                   "group absolute right-0 flex min-h-0 appearance-none items-start overflow-hidden p-0 text-left outline-none transition-colors",
-                  "focus-visible:ring-2 focus-visible:ring-ring/40",
+                  "focus-visible:inset-ring-2 focus-visible:inset-ring-ring/40",
                   isRoot ? "bg-transparent" : "border-b border-hairline bg-surface-raised",
                   segment.depth > 0 && [
                     "border-l",
-                    selected ? "border-l-primary" : "border-l-hairline",
+                    selected ? "border-l-2 border-l-primary" : "border-l-hairline",
                   ],
                   "hover:bg-surface-high",
-                  selected && !isRoot && "bg-selection",
+                  selected && "bg-selection",
                 )}
                 style={{
                   top: `${segment.top * 100}%`,
@@ -143,16 +145,21 @@ export function StructuralMinimap({
                   left: `${segment.depth * DEPTH_INDENT_PX}px`,
                 }}
               >
-                <span className="flex min-w-0 items-baseline gap-1 px-1.5 pt-1 leading-none">
+                <span className="flex min-w-0 flex-1 items-baseline justify-between gap-2 px-1.5 pt-1 leading-none">
                   <span
                     className={cn(
-                      "truncate font-mono text-code transition-colors",
+                      "min-w-0 truncate font-mono text-code transition-colors",
                       selected ? "text-ink" : "text-json-key group-hover:text-ink",
                     )}
                   >
                     {label}
                   </span>
-                  <span className="shrink-0 font-mono text-code tabular-nums text-ink-subtle">
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono text-code tabular-nums transition-colors",
+                      selected ? "text-ink" : "text-ink-subtle group-hover:text-ink-muted",
+                    )}
+                  >
                     {segment.size}
                   </span>
                 </span>
