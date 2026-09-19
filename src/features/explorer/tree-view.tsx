@@ -43,7 +43,8 @@ import {
   isJsonContainerNode,
 } from "@/core/json/traverse"
 import { formatJsonCode } from "@/core/json/format"
-import { searchJson } from "@/core/json/search"
+import { searchJson, type JsonSearchMatch } from "@/core/json/search"
+import { searchJsonInWorker } from "@/core/json/json-worker-client"
 import { CodeView } from "@/features/explorer/code-view"
 import { CommandPalette } from "@/features/explorer/command-palette"
 import { JsonPathDialog } from "@/features/explorer/json-path-dialog"
@@ -62,6 +63,8 @@ type TreeItemPosition = {
 type TreeViewProps = {
   readonly root: JsonNode
   readonly stats: JsonStats
+  readonly searchWorkerReady: boolean
+  readonly initialCommandOpen: boolean
   readonly onCloseDocument: () => void
 }
 
@@ -440,7 +443,13 @@ function ViewSwitch({
   )
 }
 
-export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
+export function TreeView({
+  root,
+  stats,
+  searchWorkerReady,
+  initialCommandOpen,
+  onCloseDocument,
+}: TreeViewProps) {
   const sourceName = useDocumentStore((s) => s.sourceName)
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -450,7 +459,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const [selectedPath, setSelectedPath] = useState<JsonPath>(() => root.path)
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle")
   const [searchQuery, setSearchQuery] = useState("")
-  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(initialCommandOpen)
   const [pathDialogOpen, setPathDialogOpen] = useState(false)
   const [view, setView] = useState<ExplorerView>("tree")
   const focusedNode = getJsonNodeAtPath(root, focusedPath) ?? root
@@ -465,10 +474,8 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     })
     return index
   }, [visibleNodes])
-  const searchMatches = useMemo(
-    () => searchJson(focusedNode, searchQuery),
-    [focusedNode, searchQuery],
-  )
+  const [searchMatches, setSearchMatches] = useState<readonly JsonSearchMatch[]>([])
+  const useSearchWorker = searchWorkerReady && stats.nodes >= 20_000
   const searchMatchNodes = useMemo(
     () => new Set(searchMatches.map((match) => match.node)),
     [searchMatches],
@@ -521,6 +528,46 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     paddingStart: 8,
     paddingEnd: 8,
   })
+
+  useEffect(() => {
+    let active = true
+    if (searchQuery === "") {
+      setSearchMatches([])
+      return () => {
+        active = false
+      }
+    }
+
+    if (!useSearchWorker) {
+      setSearchMatches(searchJson(focusedNode, searchQuery))
+      return () => {
+        active = false
+      }
+    }
+
+    void searchJsonInWorker(searchQuery, focusedNode.path).then(
+      (matches) => {
+        if (!active) {
+          return
+        }
+        setSearchMatches(
+          matches.flatMap((match) => {
+            const node = getJsonNodeAtPath(root, match.path)
+            return node === null ? [] : [{ node, matchedBy: match.matchedBy }]
+          }),
+        )
+      },
+      () => {
+        if (active) {
+          setSearchMatches(searchJson(focusedNode, searchQuery))
+        }
+      },
+    )
+
+    return () => {
+      active = false
+    }
+  }, [focusedNode, root, searchQuery, useSearchWorker])
 
   useEffect(() => {
     if (view !== "tree" || selectedIndex === -1) {

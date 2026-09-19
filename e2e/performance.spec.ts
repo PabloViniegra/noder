@@ -21,6 +21,20 @@ type DeepPerformanceResult = {
 
 type DeepValue = string | { readonly [key: string]: DeepValue }
 
+const PERFORMANCE_ASSERTION_TIMEOUT = 30_000
+
+type PerformanceBudget = {
+  readonly loadMs: number
+  readonly searchMs?: number
+  readonly jsonPathMs: number
+}
+
+const PERFORMANCE_BUDGETS = {
+  baseline: { loadMs: 12_000, searchMs: 3_000, jsonPathMs: 5_000 },
+  stress: { loadMs: 30_000, searchMs: 5_000, jsonPathMs: 8_000 },
+  deep: { loadMs: 5_000, jsonPathMs: 5_000 },
+} satisfies Record<"baseline" | "stress" | "deep", PerformanceBudget>
+
 function makePayload(records: number) {
   const payload = Object.fromEntries(
     Array.from({ length: records }, (_, index) => [
@@ -83,6 +97,43 @@ async function readHeap(session: CDPSession): Promise<number> {
   return usedSize
 }
 
+function median(values: readonly number[]): number {
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  const lower = sorted[middle - 1]
+  const upper = sorted[middle]
+  if (lower === undefined || upper === undefined) {
+    throw new Error("Cannot calculate the median of an empty set.")
+  }
+  return sorted.length % 2 === 0 ? (lower + upper) / 2 : upper
+}
+
+function summarizePerformance(results: readonly PerformanceResult[]) {
+  return {
+    samples: results.length,
+    medianLoadMs: median(results.map((result) => result.loadMs)),
+    medianSearchMs: median(results.map((result) => result.searchMs)),
+    medianJsonPathMs: median(results.map((result) => result.jsonPathMs)),
+  }
+}
+
+function expectPerformanceBudget(
+  results: readonly PerformanceResult[],
+  budget: PerformanceBudget,
+) {
+  for (const result of results) {
+    expect(result.loadMs, `${result.records} records load`).toBeLessThanOrEqual(budget.loadMs)
+    expect(result.jsonPathMs, `${result.records} records JSONPath`).toBeLessThanOrEqual(
+      budget.jsonPathMs,
+    )
+    if (budget.searchMs !== undefined) {
+      expect(result.searchMs, `${result.records} records search`).toBeLessThanOrEqual(
+        budget.searchMs,
+      )
+    }
+  }
+}
+
 async function measureWidePayload(
   page: Page,
   cdp: CDPSession,
@@ -96,13 +147,17 @@ async function measureWidePayload(
   await input.fill(payload.text)
   const loadMs = await measure(page, `load-${records}`, async () => {
     await input.press("Enter")
-    await expect(page.locator('[data-stat="nodes"]')).toHaveText(String(payload.nodes))
+    await expect(page.locator('[data-stat="nodes"]')).toHaveText(String(payload.nodes), {
+      timeout: PERFORMANCE_ASSERTION_TIMEOUT,
+    })
   })
 
   const search = page.getByRole("searchbox", { name: "Search keys and values" })
   const searchMs = await measure(page, `search-${records}`, async () => {
     await search.fill("target")
-    await expect(page.locator("[data-search-count]")).toHaveText("1 match")
+    await expect(page.locator("[data-search-count]")).toContainText("1 match", {
+      timeout: PERFORMANCE_ASSERTION_TIMEOUT,
+    })
   })
 
   await page.getByRole("button", { name: "Go to JSONPath" }).click()
@@ -111,7 +166,9 @@ async function measureWidePayload(
   await pathInput.fill(payload.targetPath)
   const jsonPathMs = await measure(page, `jsonpath-${records}`, async () => {
     await pathInput.press("Enter")
-    await expect(page.locator("[data-selected-path]")).toHaveText(payload.targetPath)
+    await expect(page.locator("[data-selected-path]")).toHaveText(payload.targetPath, {
+      timeout: PERFORMANCE_ASSERTION_TIMEOUT,
+    })
   })
 
   const heapAfter = await readHeap(cdp)
@@ -137,13 +194,16 @@ test("@performance measures explorer scaling for large JSON documents", async ({
     results.push(await measureWidePayload(page, cdp, records))
   }
 
-  console.info(`PERFORMANCE_BASELINE ${JSON.stringify(results)}`)
+  console.info(
+    `PERFORMANCE_BASELINE ${JSON.stringify({ results, summary: summarizePerformance(results) })}`,
+  )
   await test.info().attach("performance-baseline.json", {
-    body: JSON.stringify(results, null, 2),
+    body: JSON.stringify({ results, summary: summarizePerformance(results) }, null, 2),
     contentType: "application/json",
   })
 
   expect(results).toHaveLength(2)
+  expectPerformanceBudget(results, PERFORMANCE_BUDGETS.baseline)
 })
 
 test("@performance stress-tests larger wide JSON documents", async ({ page }) => {
@@ -157,13 +217,16 @@ test("@performance stress-tests larger wide JSON documents", async ({ page }) =>
     results.push(await measureWidePayload(page, cdp, records))
   }
 
-  console.info(`PERFORMANCE_STRESS_BASELINE ${JSON.stringify(results)}`)
+  console.info(
+    `PERFORMANCE_STRESS_BASELINE ${JSON.stringify({ results, summary: summarizePerformance(results) })}`,
+  )
   await test.info().attach("performance-stress-baseline.json", {
-    body: JSON.stringify(results, null, 2),
+    body: JSON.stringify({ results, summary: summarizePerformance(results) }, null, 2),
     contentType: "application/json",
   })
 
   expect(results).toHaveLength(2)
+  expectPerformanceBudget(results, PERFORMANCE_BUDGETS.stress)
 })
 
 test("@performance measures navigation through deep JSON documents", async ({ page }) => {
@@ -182,7 +245,9 @@ test("@performance measures navigation through deep JSON documents", async ({ pa
     await input.fill(payload.text)
     const loadMs = await measure(page, `deep-load-${depth}`, async () => {
       await input.press("Enter")
-      await expect(page.locator('[data-stat="nodes"]')).toHaveText(String(payload.nodes))
+      await expect(page.locator('[data-stat="nodes"]')).toHaveText(String(payload.nodes), {
+        timeout: PERFORMANCE_ASSERTION_TIMEOUT,
+      })
     })
 
     await page.getByRole("button", { name: "Go to JSONPath" }).click()
@@ -191,7 +256,9 @@ test("@performance measures navigation through deep JSON documents", async ({ pa
     await pathInput.fill(payload.targetPath)
     const jsonPathMs = await measure(page, `deep-jsonpath-${depth}`, async () => {
       await pathInput.press("Enter")
-      await expect(page.locator("[data-selected-path]")).toHaveText(payload.targetPath)
+      await expect(page.locator("[data-selected-path]")).toHaveText(payload.targetPath, {
+        timeout: PERFORMANCE_ASSERTION_TIMEOUT,
+      })
     })
 
     const heapAfter = await readHeap(cdp)
@@ -212,4 +279,12 @@ test("@performance measures navigation through deep JSON documents", async ({ pa
   })
 
   expect(results).toHaveLength(2)
+  for (const result of results) {
+    expect(result.loadMs, `${result.depth} levels load`).toBeLessThanOrEqual(
+      PERFORMANCE_BUDGETS.deep.loadMs,
+    )
+    expect(result.jsonPathMs, `${result.depth} levels JSONPath`).toBeLessThanOrEqual(
+      PERFORMANCE_BUDGETS.deep.jsonPathMs,
+    )
+  }
 })

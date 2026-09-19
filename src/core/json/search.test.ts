@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { parseJson } from "./parse"
-import { searchJson } from "./search"
+import { parseJson, parseJsonWithSearchIndex } from "./parse"
+import { searchJson, searchJsonIndex } from "./search"
 
 describe("searchJson", () => {
   it("matches keys and scalar values case-insensitively", () => {
@@ -31,5 +31,20 @@ describe("searchJson", () => {
     }
 
     expect(searchJson(result.document.root, "  ")).toEqual([])
+  })
+
+  it("searches the normalized index within a focused path", () => {
+    const result = parseJsonWithSearchIndex(
+      '{"users":[{"name":"Ada"}],"meta":{"owner":"Ada"}}',
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      throw new Error("expected a parsed document")
+    }
+
+    expect(searchJsonIndex(result.searchIndex, "ada", ["users"])).toEqual([
+      { path: ["users", 0, "name"], matchedBy: ["value"] },
+    ])
   })
 })

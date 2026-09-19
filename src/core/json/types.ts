@@ -63,3 +63,9 @@ export type JsonDocument = {
   readonly root: JsonNode
   readonly stats: JsonStats
 }
+
+export type JsonSearchIndexEntry = {
+  readonly path: JsonPath
+  readonly key: string | null
+  readonly value: string | null
+}

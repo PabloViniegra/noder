@@ -1,8 +1,13 @@
 import { Dialog } from "@base-ui/react/dialog"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useDocumentStore } from "@/features/document/store"
 import { TreeView } from "@/features/explorer/tree-view"
+
+type ExplorerShellProps = {
+  readonly initialCommandOpen: boolean
+  readonly onMounted: () => void
+}
 
 type CloseDocumentDialogProps = {
   readonly open: boolean
@@ -59,11 +64,16 @@ function CloseDocumentDialog({
   )
 }
 
-export function ExplorerShell() {
+export function ExplorerShell({ initialCommandOpen, onMounted }: ExplorerShellProps) {
   const sourceName = useDocumentStore((s) => s.sourceName)
   const document = useDocumentStore((s) => s.document)
+  const searchWorkerReady = useDocumentStore((s) => s.searchWorkerReady)
   const clear = useDocumentStore((s) => s.clear)
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false)
+
+  useEffect(() => {
+    onMounted()
+  }, [onMounted])
 
   return (
     <>
@@ -71,6 +81,8 @@ export function ExplorerShell() {
         <TreeView
           root={document.root}
           stats={document.stats}
+          searchWorkerReady={searchWorkerReady}
+          initialCommandOpen={initialCommandOpen}
           onCloseDocument={() => setConfirmCloseOpen(true)}
         />
       )}

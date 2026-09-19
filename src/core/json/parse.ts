@@ -6,6 +6,7 @@ import type {
   JsonPath,
   JsonPathSegment,
   JsonStats,
+  JsonSearchIndexEntry,
 } from "./types"
 
 export type JsonParseOk = {
@@ -21,6 +22,27 @@ export type JsonParseErr = {
 export type JsonParseResult = JsonParseOk | JsonParseErr
 
 export function parseJson(text: string): JsonParseResult {
+  return parseJsonInternal(text, null)
+}
+
+export type JsonParseWithSearchIndexResult =
+  | (JsonParseOk & { readonly searchIndex: readonly JsonSearchIndexEntry[] })
+  | JsonParseErr
+
+export function parseJsonWithSearchIndex(text: string): JsonParseWithSearchIndexResult {
+  const searchIndex: JsonSearchIndexEntry[] = []
+  const result = parseJsonInternal(text, searchIndex)
+  if (!result.ok) {
+    return result
+  }
+
+  return { ...result, searchIndex }
+}
+
+function parseJsonInternal(
+  text: string,
+  searchIndex: JsonSearchIndexEntry[] | null,
+): JsonParseResult {
   let value: JsonValue
 
   try {
@@ -47,7 +69,7 @@ export function parseJson(text: string): JsonParseResult {
   return {
     ok: true,
     document: {
-      root: normalizeNode(value, null, [], 0, stats),
+      root: normalizeNode(value, null, [], 0, stats, searchIndex),
       stats,
     },
   }
@@ -63,9 +85,18 @@ function normalizeNode(
   path: JsonPath,
   depth: number,
   stats: JsonStatsAccumulator,
+  searchIndex: JsonSearchIndexEntry[] | null = null,
 ): JsonNode {
   stats.nodes += 1
   stats.maxDepth = Math.max(stats.maxDepth, depth)
+
+  if (searchIndex !== null) {
+    searchIndex.push({
+      key: isStringPathSegment(key) ? key : null,
+      path,
+      value: scalarSearchValue(value),
+    })
+  }
 
   if (value === null) {
     stats.nulls += 1
@@ -80,7 +111,7 @@ function normalizeNode(
       path,
       depth,
       children: value.map((child, index) =>
-        normalizeNode(child, index, [...path, index], depth + 1, stats),
+        normalizeNode(child, index, [...path, index], depth + 1, stats, searchIndex),
       ),
     }
   }
@@ -99,6 +130,7 @@ function normalizeNode(
           [...path, childKey],
           depth + 1,
           stats,
+          searchIndex,
         ),
       ),
     }
@@ -120,6 +152,20 @@ function normalizeNode(
   }
 
   throw new Error("Unsupported JSON value")
+}
+
+function scalarSearchValue(value: JsonValue): string | null {
+  if (value === null) {
+    return "null"
+  }
+  if (Array.isArray(value) || isJsonObject(value)) {
+    return null
+  }
+  return String(value)
+}
+
+function isStringPathSegment(segment: JsonPathSegment | null): segment is string {
+  return Object.prototype.toString.call(segment) === "[object String]"
 }
 
 function isJsonObject(value: JsonValue): value is JsonObject {
