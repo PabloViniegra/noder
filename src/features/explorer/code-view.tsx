@@ -220,7 +220,7 @@ function CodeLine({
       className={cn(
         "flex min-h-7 w-full items-center overflow-hidden px-3 font-mono text-code whitespace-pre outline-none transition-colors",
         selected
-          ? "bg-selection text-ink hover:bg-selection"
+          ? "bg-selection text-ink shadow-[inset_2px_0_0_var(--primary-hover)] hover:bg-selection"
           : matched
             ? "bg-primary/10 hover:bg-primary/15"
             : "hover:bg-surface-raised focus-visible:bg-selection",

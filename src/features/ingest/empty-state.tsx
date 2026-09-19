@@ -104,7 +104,7 @@ export function EmptyState() {
         return
       }
       event.preventDefault()
-      loadText(text, "clipboard")
+      loadText(text, "Pasted JSON")
       setDraft(text)
     }
 
@@ -144,7 +144,7 @@ export function EmptyState() {
       ingestFile(file, loadFile, setDraft)
       return
     }
-    ingestText(event.dataTransfer.getData("text"), "drop")
+    ingestText(event.dataTransfer.getData("text"), "Dropped JSON")
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -164,7 +164,7 @@ export function EmptyState() {
       return
     }
     event.preventDefault()
-    ingestText(draft, "typed")
+    ingestText(draft, "Typed JSON")
   }
 
   function paintSpot(clientX: number, clientY: number) {
@@ -202,7 +202,7 @@ export function EmptyState() {
     }
     void navigator.clipboard.readText().then(
       (text) => {
-        ingestText(text, "clipboard")
+        ingestText(text, "Pasted JSON")
       },
       () => {
         jsonRef.current?.focus()
@@ -280,7 +280,7 @@ export function EmptyState() {
                 onChange={onDraftChange}
                 onKeyDown={onDraftKeyDown}
                 className={cn(
-                  "min-h-28 w-full resize-none rounded-lg bg-canvas px-4 py-3 font-mono text-base text-ink caret-primary-hover outline-none transition-[border-color] duration-150 placeholder:text-json-punctuation [scrollbar-color:var(--hairline-strong)_transparent] sm:min-h-36 sm:text-code",
+                  "min-h-28 w-full resize-none rounded-lg bg-canvas px-4 py-3 font-mono text-base text-ink caret-primary-hover outline-none transition-[border-color] duration-150 placeholder:text-json-punctuation sm:min-h-36 sm:text-code",
                   "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40",
                   "disabled:opacity-50",
                   shownError !== null ? "border border-destructive" : "border border-hairline",

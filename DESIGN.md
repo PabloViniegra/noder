@@ -26,12 +26,12 @@ colors:
   error: "#eb5757"
   success: "#27a644"
   warning: "#f2994a"
-  json-key: "#c0caf5"
-  json-string: "#9ece6a"
-  json-number: "#7aa2f7"
-  json-boolean: "#bb9af7"
-  json-null: "#8a8f98"
-  json-punctuation: "#8a8f98"
+  json-key: "#c1c9e9"
+  json-string: "#98d4b5"
+  json-number: "#dbbc8a"
+  json-boolean: "#eaa79e"
+  json-null: "#8a8c92"
+  json-punctuation: "#84868c"
 typography:
   title:
     fontFamily: Outfit Variable
@@ -312,7 +312,7 @@ Paint the shell with `{colors.canvas}` and lift in-flow panels through `{colors.
 
 `{colors.primary}` is punctuation: focus rings and selected-state wash. JSONPath and in-tree links use `{colors.primary-hover}` so they meet AA on `{colors.canvas}`. Selected tree rows use `{colors.selection}`, a dark indigo wash, not a primary fill. Do not fill cards, sidebars, or the canvas with `{colors.primary}`. The one high-emphasis control inverts to `{colors.inverse}` so it is the brightest object on screen.
 
-JSON syntax uses its own family so data never impersonates chrome. Keys `{colors.json-key}`, strings `{colors.json-string}`, numbers `{colors.json-number}`, booleans `{colors.json-boolean}`, null `{colors.json-null}`, punctuation `{colors.json-punctuation}`. Do not reuse `{colors.primary}` for keys or numbers.
+JSON syntax uses its own family so data never impersonates chrome. Keys `{colors.json-key}`, strings `{colors.json-string}`, numbers `{colors.json-number}`, booleans `{colors.json-boolean}`, null `{colors.json-null}`, punctuation `{colors.json-punctuation}`. Do not reuse `{colors.primary}` for keys or numbers. The data family is Noder's own, not a borrowed editor theme: desaturated hues derived around the brand's cool axis, keys carrying the lavender cast, and one warm hue reserved for booleans. Every token stays ≥4.5:1 on `{colors.canvas}`, `{colors.surface}`, and `{colors.selection}`.
 
 Glass fills use `{colors.glass}` with `{colors.glass-border}` and a top-edge `{colors.glass-highlight}`. `{colors.overlay}` dims the tree only under modal chrome.
 

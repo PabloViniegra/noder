@@ -128,12 +128,12 @@
   --selection: #18182f;
   --success: #27a644;
   --warning: #f2994a;
-  --json-key: #c0caf5;
-  --json-string: #9ece6a;
-  --json-number: #7aa2f7;
-  --json-boolean: #bb9af7;
-  --json-null: #8a8f98;
-  --json-punctuation: #8a8f98;
+  --json-key: #c1c9e9;
+  --json-string: #98d4b5;
+  --json-number: #dbbc8a;
+  --json-boolean: #eaa79e;
+  --json-null: #8a8c92;
+  --json-punctuation: #84868c;
   --background: var(--canvas);
   --foreground: var(--ink);
   --card: var(--surface);
@@ -317,7 +317,28 @@
     cursor: pointer;
   }
   ::selection {
-    background-color: var(--selection);
+    background-color: color-mix(in oklab, var(--primary) 38%, transparent);
     color: var(--ink);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--hairline-strong) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-color: var(--hairline-strong);
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--ink-subtle);
+    background-clip: content-box;
   }
 }

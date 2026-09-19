@@ -23,6 +23,42 @@ test("opens a JSON file and leaves the empty state", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Open file" })).toHaveCount(0)
 })
 
+test("guards closing a document behind a confirmation", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"ok":true}')
+  await input.press("Enter")
+  await expect(page.getByRole("heading", { name: "Tree View" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Close document" }).click()
+  const dialog = page.getByRole("dialog", { name: "Close this document?" })
+  await expect(dialog).toBeVisible()
+
+  await dialog.getByRole("button", { name: "Cancel" }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "Tree View" })).toBeVisible()
+
+  await page.getByRole("button", { name: "Close document" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Close document" }).click()
+  await expect(page.getByRole("heading", { name: "Open JSON" })).toBeVisible()
+})
+
+test("explorer renders without duplicate-key console errors", async ({ page }) => {
+  const errors: string[] = []
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      errors.push(message.text())
+    }
+  })
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"user":{"id":1},"items":[true]}')
+  await input.press("Enter")
+  await expect(page.getByRole("heading", { name: "Tree View" })).toBeVisible()
+
+  expect(errors.filter((text) => text.includes("same key"))).toEqual([])
+})
+
 test("renders a progressive tree and expands a branch with the keyboard", async ({ page }) => {
   await page.goto("/")
   const input = page.getByRole("textbox", { name: "Open JSON" })
@@ -217,7 +253,10 @@ test("searches keys and values and reveals each match", async ({ page }) => {
 
   const search = page.getByRole("searchbox", { name: "Search keys and values" })
   await search.fill("ada")
-  await expect(page.locator("[data-search-count]")).toHaveText("2 matches")
+  await expect(page.locator("[data-search-count]")).toHaveText(
+    "2 matches — in collapsed branches",
+  )
+  await expect(page.locator("[data-hidden-matches]")).toHaveCount(2)
   await expect(page.getByRole("button", { name: "Previous match" })).toBeEnabled()
   await expect(page.getByRole("button", { name: "Next match" })).toBeEnabled()
 
@@ -225,6 +264,7 @@ test("searches keys and values and reveals each match", async ({ page }) => {
   await expect(page.locator("[data-selected-path]")).toHaveText("$.users[0].name")
   await expect(page.locator("[data-search-count]")).toHaveText("1 of 2 matches")
   await expect(page.locator('[data-search-current="true"]')).toHaveCount(1)
+  await expect(page.locator("[data-hidden-matches]")).toHaveCount(1)
 
   await search.press("Enter")
   await expect(page.locator("[data-selected-path]")).toHaveText("$.meta.owner")
@@ -277,7 +317,9 @@ test("opens the command palette with Ctrl+K and sends a search query", async ({ 
 
   const search = page.getByRole("searchbox", { name: "Search keys and values" })
   await expect(search).toHaveValue("ada")
-  await expect(page.locator("[data-search-count]")).toHaveText("1 match")
+  await expect(page.locator("[data-search-count]")).toHaveText(
+    "1 match — in collapsed branches",
+  )
 
   await page.keyboard.press("Control+k")
   await expect(page.getByRole("combobox", { name: "Search commands" })).toHaveValue("")
@@ -334,8 +376,8 @@ test("selects a heavier branch from the structure minimap", async ({ page }) => 
   await expect(minimap.getByText("users", { exact: true })).toBeVisible()
   await expect(minimap.getByText("meta", { exact: true })).toBeVisible()
 
-  const usersSlab = minimap.getByRole("button", { name: "Select users" })
-  const metaSlab = minimap.getByRole("button", { name: "Select meta" })
+  const usersSlab = minimap.getByRole("button", { name: "Select users ($.users)", exact: true })
+  const metaSlab = minimap.getByRole("button", { name: "Select meta ($.meta)", exact: true })
   const usersBox = await usersSlab.boundingBox()
   const metaBox = await metaSlab.boundingBox()
   expect(usersBox).not.toBeNull()
@@ -346,7 +388,7 @@ test("selects a heavier branch from the structure minimap", async ({ page }) => 
   await expect(page.locator("[data-selected-path]")).toHaveText("$.users")
   await expect(page.getByRole("treeitem").filter({ hasText: "[0]" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Exit focus" })).toHaveCount(0)
-  await expect(minimap.getByRole("button", { name: "Select meta" })).toBeVisible()
+  await expect(minimap.getByRole("button", { name: "Select meta ($.meta)", exact: true })).toBeVisible()
 })
 
 test("zooms the structure minimap to the focused branch", async ({ page }) => {
@@ -359,8 +401,8 @@ test("zooms the structure minimap to the focused branch", async ({ page }) => {
   await page.getByRole("button", { name: "Focus branch" }).click()
 
   const minimap = page.getByRole("region", { name: "Structure" })
-  await expect(minimap.getByRole("button", { name: "Select users" })).toBeVisible()
-  await expect(minimap.getByRole("button", { name: "Select meta" })).toHaveCount(0)
+  await expect(minimap.getByRole("button", { name: "Select users ($.users)", exact: true })).toBeVisible()
+  await expect(minimap.getByRole("button", { name: "Select meta ($.meta)", exact: true })).toHaveCount(0)
 })
 
 test("navigates and selects minimap segments with the keyboard", async ({ page }) => {
@@ -370,18 +412,18 @@ test("navigates and selects minimap segments with the keyboard", async ({ page }
   await input.press("Enter")
 
   const minimap = page.getByRole("region", { name: "Structure" })
-  const root = minimap.getByRole("button", { name: "Select root" })
+  const root = minimap.getByRole("button", { name: "Select root ($)", exact: true })
   await root.focus()
   await expect(root).toBeFocused()
 
   await root.press("ArrowDown")
-  await expect(minimap.getByRole("button", { name: "Select users" })).toBeFocused()
+  await expect(minimap.getByRole("button", { name: "Select users ($.users)", exact: true })).toBeFocused()
 
   await page.keyboard.press("ArrowDown")
-  await expect(minimap.getByRole("button", { name: "Select [0]" })).toBeFocused()
+  await expect(minimap.getByRole("button", { name: "Select users[0] ($.users[0])", exact: true })).toBeFocused()
 
   await page.keyboard.press("End")
-  await expect(minimap.getByRole("button", { name: "Select meta" })).toBeFocused()
+  await expect(minimap.getByRole("button", { name: "Select meta ($.meta)", exact: true })).toBeFocused()
 
   await page.keyboard.press("Home")
   await page.keyboard.press("Enter")

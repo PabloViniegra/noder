@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import type { JsonNode, JsonPath } from "@/core/json/types"
-import { layoutMinimap } from "@/core/json/minimap"
+import { layoutMinimap, type MinimapSegment } from "@/core/json/minimap"
 import { formatJsonPath, serializeJsonPath } from "@/core/json/path"
 import { cn } from "@/lib/utils"
 
@@ -15,11 +15,15 @@ type StructuralMinimapProps = {
   readonly onSelectPath: (path: JsonPath) => void
 }
 
-function segmentLabel(key: JsonNode["key"]): string {
-  if (key === null) {
+function segmentLabel(segment: MinimapSegment): string {
+  if (segment.key === null) {
     return "root"
   }
-  return Object.prototype.toString.call(key) === "[object Number]" ? `[${key}]` : String(key)
+  if (Object.prototype.toString.call(segment.key) === "[object Number]") {
+    const parent = segment.path[segment.path.length - 2]
+    return parent === undefined ? `[${segment.key}]` : `${parent}[${segment.key}]`
+  }
+  return String(segment.key)
 }
 
 export function StructuralMinimap({
@@ -83,10 +87,7 @@ export function StructuralMinimap({
 
   return (
     <div
-      className={cn(
-        "flex flex-col gap-1 md:h-auto md:w-36 md:shrink-0 md:self-stretch",
-        coarsePointer ? "h-64" : "h-40",
-      )}
+      className="flex h-32 flex-col gap-1 md:h-auto md:w-36 md:shrink-0 md:self-stretch"
     >
       <h3
         id="structure-minimap-title"
@@ -104,7 +105,7 @@ export function StructuralMinimap({
           {segments.map((segment, index) => {
             const path = serializeJsonPath(segment.path)
             const selected = path === selectedPath
-            const label = segmentLabel(segment.key)
+            const label = segmentLabel(segment)
             const isRoot = segment.key === null
             const accessibleLabel = isRoot
               ? "Select root ($)"

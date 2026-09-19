@@ -48,6 +48,7 @@ import { CodeView } from "@/features/explorer/code-view"
 import { CommandPalette } from "@/features/explorer/command-palette"
 import { JsonPathDialog } from "@/features/explorer/json-path-dialog"
 import { StructuralMinimap } from "@/features/explorer/structural-minimap"
+import { useDocumentStore } from "@/features/document/store"
 import { cn } from "@/lib/utils"
 
 type ContainerNode = JsonObjectNode | JsonArrayNode
@@ -70,6 +71,7 @@ type TreeRowProps = {
   readonly selected: boolean
   readonly matched: boolean
   readonly currentMatch: boolean
+  readonly hiddenMatchCount: number
   readonly level: number
   readonly positionInSet: number
   readonly setSize: number
@@ -202,12 +204,15 @@ function Breadcrumbs({ path, onNavigate }: BreadcrumbsProps) {
   )
 }
 
-function searchCountLabel(count: number, currentIndex: number): string {
+function searchCountLabel(count: number, currentIndex: number, visibleCount: number): string {
   if (count === 0) {
     return "No matches"
   }
   const countLabel = `${count} ${count === 1 ? "match" : "matches"}`
-  return currentIndex === -1 ? countLabel : `${currentIndex + 1} of ${countLabel}`
+  if (currentIndex !== -1) {
+    return `${currentIndex + 1} of ${countLabel}`
+  }
+  return visibleCount === 0 ? `${countLabel} — in collapsed branches` : countLabel
 }
 
 function formatBytes(bytes: number): string {
@@ -244,11 +249,11 @@ function DocumentStats({ stats }: DocumentStatsProps) {
       <h3 id="document-stats-title" className="sr-only">
         Document statistics
       </h3>
-      <dl className="grid grid-cols-2 gap-px bg-hairline sm:grid-cols-5">
+      <dl className="flex gap-px overflow-x-auto bg-hairline sm:grid sm:grid-cols-5">
         {metrics.map((metric) => (
           <div
             key={metric.key}
-            className="flex min-w-0 flex-col gap-1 bg-surface px-3 py-2 last:col-span-2 sm:last:col-span-1"
+            className="flex min-w-28 shrink-0 flex-col gap-1 bg-surface px-3 py-2 sm:min-w-0 sm:last:col-span-1"
           >
             <dt className="text-caption text-ink-subtle">{metric.label}</dt>
             <dd
@@ -270,6 +275,7 @@ function TreeRow({
   selected,
   matched,
   currentMatch,
+  hiddenMatchCount,
   level,
   positionInSet,
   setSize,
@@ -314,7 +320,7 @@ function TreeRow({
         className={cn(
           "group flex min-h-7 w-full min-w-0 items-center overflow-hidden rounded-sm px-1 outline-none transition-colors",
           selected
-            ? "bg-selection text-ink hover:bg-selection"
+            ? "bg-selection text-ink shadow-[inset_2px_0_0_var(--primary-hover)] hover:bg-selection"
             : matched
               ? "bg-primary/10 hover:bg-primary/15"
               : "hover:bg-surface-raised focus-visible:bg-selection",
@@ -346,9 +352,22 @@ function TreeRow({
         </span>
         {node.key !== null && <span className="text-json-punctuation">:</span>}
         {container ? (
-          <span className={cn("ml-2 min-w-0 truncate", kindClass(node.kind))}>
-            {containerSummary(node)}
-          </span>
+          <>
+            <span className={cn("ml-2 min-w-0 truncate", kindClass(node.kind))}>
+              {containerSummary(node)}
+            </span>
+            {!expanded && hiddenMatchCount > 0 && (
+              <span
+                data-hidden-matches={hiddenMatchCount}
+                title={`${hiddenMatchCount} hidden ${
+                  hiddenMatchCount === 1 ? "match" : "matches"
+                } in this branch`}
+                className="ml-2 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 font-mono text-caption tabular-nums text-primary-hover"
+              >
+                {hiddenMatchCount}
+              </span>
+            )}
+          </>
         ) : (
           <span
             className={cn("ml-2 min-w-0 flex-1 truncate", kindClass(node.kind))}
@@ -422,6 +441,7 @@ function ViewSwitch({
 }
 
 export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
+  const sourceName = useDocumentStore((s) => s.sourceName)
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef(new Map<string, HTMLDivElement>())
@@ -457,6 +477,25 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
     () => new Set(searchMatches.map((match) => serializeJsonPath(match.node.path))),
     [searchMatches],
   )
+  const visibleMatchCount = useMemo(
+    () => searchMatches.filter((match) => visibleIndexByNode.has(match.node)).length,
+    [searchMatches, visibleIndexByNode],
+  )
+  const hiddenMatchCountByPath = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const match of searchMatches) {
+      let ancestorPath = parentJsonPath(match.node.path)
+      while (ancestorPath !== null && isJsonPathWithin(ancestorPath, focusedNode.path)) {
+        const ancestor = getJsonNodeAtPath(root, ancestorPath)
+        if (ancestor !== null && isJsonContainerNode(ancestor) && !expandedNodes.has(ancestor)) {
+          const key = serializeJsonPath(ancestor.path)
+          counts.set(key, (counts.get(key) ?? 0) + 1)
+        }
+        ancestorPath = parentJsonPath(ancestorPath)
+      }
+    }
+    return counts
+  }, [searchMatches, expandedNodes, focusedNode.path, root])
   const codeLines = useMemo(
     () => (view === "code" ? formatJsonCode(focusedNode) : []),
     [focusedNode, view],
@@ -468,6 +507,8 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const selectedIndex = visibleIndexByNode.get(selectedNode) ?? -1
   const focusedPathKey = serializeJsonPath(focusedPath)
   const selectedPathKey = serializeJsonPath(selectedPath)
+  const canFocusSelected =
+    isJsonContainerNode(selectedNode) && selectedPathKey !== focusedPathKey
   const rowVirtualizer = useVirtualizer({
     count: visibleNodes.length,
     getScrollElement: () => scrollRef.current,
@@ -530,7 +571,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   }
 
   function focusSelectedNode() {
-    if (!isJsonContainerNode(selectedNode) || selectedPathKey === focusedPathKey) {
+    if (!canFocusSelected) {
       return
     }
     focusPath(selectedNode.path)
@@ -715,273 +756,309 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   }
 
   return (
-    <section
-      aria-labelledby="tree-view-title"
-      className="flex min-h-[calc(100svh-5rem)] flex-col gap-4 md:h-[calc(100svh-5rem)]"
-    >
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <Breadcrumbs path={focusedPath} onNavigate={focusPath} />
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h2 id="tree-view-title" className="font-heading text-lg font-medium text-ink">
-              {view === "tree" ? "Tree View" : "Code View"}
-            </h2>
-            <ViewSwitch view={view} onChange={setView} />
-          </div>
-          <p className="mt-1 text-body text-ink-subtle">
-            {view === "tree"
-              ? "Expand branches to inspect the structure."
-              : "Pretty-print of the focused branch."}
+    <div className="relative flex min-h-svh flex-col overflow-x-clip bg-canvas md:h-svh md:overflow-hidden">
+      <header className="glass sticky top-2 z-20 mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl px-2 sm:px-3">
+        <h1 className="shrink-0 font-heading text-title-sm text-ink">Noder</h1>
+        <span className="hidden shrink-0 font-mono text-caption text-ink-subtle sm:inline">
+          Local only
+        </span>
+        {sourceName !== null && (
+          <p className="hidden min-w-0 truncate font-mono text-label text-ink-subtle md:block">
+            {sourceName}
           </p>
-          <code data-selected-path className="mt-2 block truncate font-mono text-caption text-ink-subtle">
-            {formatJsonPath(selectedNode.path)}
-          </code>
+        )}
+        <span className="mx-1 hidden h-4 w-px shrink-0 bg-hairline md:block" aria-hidden />
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <Breadcrumbs path={focusedPath} onNavigate={focusPath} />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
+          <ViewSwitch view={view} onChange={setView} />
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="min-h-11 sm:min-h-7"
-            onClick={() => setPathDialogOpen(true)}
-            data-json-path-trigger
-          >
-            <SearchIcon data-icon="inline-start" aria-hidden />
-            Go to JSONPath
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-11 sm:min-h-7"
+            aria-label="Command"
             onClick={() => setPaletteOpen(true)}
             data-command-trigger
           >
             <CommandIcon data-icon="inline-start" aria-hidden />
-            Command
-            <KbdGroup>
+            <span className="hidden sm:inline">Command</span>
+            <KbdGroup className="hidden sm:inline-flex">
               <Kbd>{/mac/i.test(navigator.userAgent) ? "⌘" : "Ctrl"}</Kbd>
               <Kbd>K</Kbd>
             </KbdGroup>
           </Button>
           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-11 sm:min-h-7"
-            disabled={!isJsonContainerNode(selectedNode) || selectedPathKey === focusedPathKey}
-            onClick={focusSelectedNode}
-            data-focus-path
+            variant="ghost"
+            size="icon-sm"
+            className="size-11 shrink-0 sm:size-7"
+            aria-label="Close document"
+            onClick={onCloseDocument}
           >
-            <FocusIcon data-icon="inline-start" aria-hidden />
-            Focus branch
+            <XIcon />
           </Button>
-          {focusedPath.length > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="min-h-11 sm:min-h-7"
-              onClick={() => focusPath(root.path)}
-            >
-              Exit focus
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="min-h-11 sm:min-h-7"
-            onClick={copySelectedPath}
-            data-copy-path
-          >
-            <CopyIcon data-icon="inline-start" aria-hidden />
-            Copy path
-          </Button>
-          <p role="status" aria-live="polite" className="min-w-20 text-caption text-ink-subtle">
-            {copyStatus === "copied"
-              ? "Path copied."
-              : copyStatus === "error"
-                ? "Could not copy."
-                : ""}
-          </p>
         </div>
-      </div>
-      <DocumentStats stats={stats} />
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-0 flex-1 basis-80">
-          <SearchIcon
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-subtle"
-          />
-          <label htmlFor="json-search" className="sr-only">
-            Search keys and values
-          </label>
-          <input
-            id="json-search"
-            ref={searchRef}
-            type="search"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Search keys and values"
-            aria-describedby="json-search-hint"
-            aria-keyshortcuts="Enter Shift+Enter"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.currentTarget.value)}
-            onKeyDown={handleSearchKeyDown}
-            className="h-11 w-full rounded-md border border-hairline bg-canvas pr-11 pl-9 text-base text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:h-8 sm:pr-9 sm:text-body"
-          />
-          {searchQuery !== "" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Clear search"
-              onClick={() => setSearchQuery("")}
-              className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-ink-subtle hover:text-ink sm:size-6"
-            >
-              <XIcon aria-hidden />
-            </Button>
-          )}
-        </div>
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
-          <span
-            data-search-count
-            aria-live="polite"
-            className="min-w-20 font-mono text-caption text-ink-subtle"
-          >
-            {searchQuery === "" ? "" : searchCountLabel(searchMatches.length, selectedMatchIndex)}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-11 sm:size-7"
-              disabled={searchMatches.length === 0}
-              aria-label="Previous match"
-              title="Previous match"
-              onClick={() => moveToSearchMatch(-1)}
-              data-search-previous
-            >
-              <ChevronUpIcon aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-11 sm:size-7"
-              disabled={searchMatches.length === 0}
-              aria-label="Next match"
-              title="Next match"
-              onClick={() => moveToSearchMatch(1)}
-              data-search-next
-            >
-              <ChevronDownIcon aria-hidden />
-            </Button>
-          </div>
-          <span id="json-search-hint" className="text-caption text-ink-subtle">
-            Enter next · Shift+Enter previous
-          </span>
-        </div>
-      </div>
-      <div className="flex flex-col gap-4 md:min-h-0 md:flex-1 md:flex-row">
-        {view === "code" ? (
-          <CodeView
-            lines={codeLines}
-            selectedPath={selectedPath}
-            matchedPaths={searchMatchPaths}
-            onSelectPath={revealPath}
-          />
-        ) : (
-        <div
-          ref={scrollRef}
-          id="json-tree-panel"
-          role="tabpanel"
-          aria-labelledby="view-tab-tree"
-          className="min-h-0 min-w-0 flex-1 overflow-auto border-y border-hairline bg-surface"
+      </header>
+      <main className="flex min-h-0 flex-col px-2 pt-3 pb-4 sm:px-4 md:flex-1">
+        <section
+          aria-labelledby="tree-view-title"
+          className="flex flex-col gap-3 md:min-h-0 md:flex-1"
         >
-          <ul
-            role="tree"
-            aria-label="JSON tree"
-            className="relative m-0 list-none p-0"
-            style={{ height: rowVirtualizer.getTotalSize() }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const node = visibleNodes[virtualRow.index]
-              if (node === undefined) {
-                return null
-              }
-              const path = serializeJsonPath(node.path)
-              return (
-                <TreeRow
-                  key={virtualRow.key}
-                  node={node}
-                  expanded={expandedNodes.has(node)}
-                  selected={jsonPathsEqual(node.path, selectedPath)}
-                  matched={searchMatchNodes.has(node)}
-                  currentMatch={
-                    selectedMatchIndex !== -1 && jsonPathsEqual(node.path, selectedPath)
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="tree-view-title" className="font-heading text-body font-medium text-ink">
+                {view === "tree" ? "Tree View" : "Code View"}
+              </h2>
+              <p className="mt-1 text-caption text-ink-subtle">
+                {view === "tree"
+                  ? "Expand branches to inspect the structure."
+                  : "Pretty-print of the focused branch."}
+              </p>
+              <code data-selected-path className="mt-2 block truncate font-mono text-caption text-ink-subtle">
+                {formatJsonPath(selectedNode.path)}
+              </code>
+              <p role="status" aria-live="polite" className="mt-1 min-h-4 text-caption text-ink-subtle">
+                {copyStatus === "copied"
+                  ? "Path copied."
+                  : copyStatus === "error"
+                    ? "Could not copy."
+                    : ""}
+              </p>
+            </div>
+            <div className="hidden flex-wrap items-center gap-3 md:flex">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11 sm:min-h-7"
+                onClick={() => setPathDialogOpen(true)}
+                data-json-path-trigger
+              >
+                <SearchIcon data-icon="inline-start" aria-hidden />
+                Go to JSONPath
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11 sm:min-h-7"
+                disabled={!canFocusSelected}
+                title={
+                  canFocusSelected
+                    ? "Isolate the selected branch"
+                    : "Select a container branch to isolate it"
+                }
+                onClick={focusSelectedNode}
+                data-focus-path
+              >
+                <FocusIcon data-icon="inline-start" aria-hidden />
+                Focus branch
+              </Button>
+              {focusedPath.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-11 sm:min-h-7"
+                  onClick={() => focusPath(root.path)}
+                >
+                  Exit focus
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11 sm:min-h-7"
+                onClick={copySelectedPath}
+                data-copy-path
+              >
+                <CopyIcon data-icon="inline-start" aria-hidden />
+                Copy path
+              </Button>
+            </div>
+          </div>
+          <DocumentStats stats={stats} />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-0 flex-1 basis-80">
+              <SearchIcon
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-subtle"
+              />
+              <label htmlFor="json-search" className="sr-only">
+                Search keys and values
+              </label>
+              <input
+                id="json-search"
+                ref={searchRef}
+                type="search"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Search keys and values"
+                aria-describedby="json-search-hint"
+                aria-keyshortcuts="Enter Shift+Enter"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.currentTarget.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="h-11 w-full rounded-md border border-hairline bg-canvas pr-11 pl-9 text-base text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:h-8 sm:pr-9 sm:text-body"
+              />
+              {searchQuery !== "" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Clear search"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-ink-subtle hover:text-ink sm:size-6"
+                >
+                  <XIcon aria-hidden />
+                </Button>
+              )}
+            </div>
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+              <span
+                data-search-count
+                aria-live="polite"
+                className="min-w-20 font-mono text-caption text-ink-subtle"
+              >
+                {searchQuery === ""
+                  ? ""
+                  : searchCountLabel(searchMatches.length, selectedMatchIndex, visibleMatchCount)}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-11 sm:size-7"
+                  disabled={searchMatches.length === 0}
+                  aria-label="Previous match"
+                  title="Previous match"
+                  onClick={() => moveToSearchMatch(-1)}
+                  data-search-previous
+                >
+                  <ChevronUpIcon aria-hidden />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-11 sm:size-7"
+                  disabled={searchMatches.length === 0}
+                  aria-label="Next match"
+                  title="Next match"
+                  onClick={() => moveToSearchMatch(1)}
+                  data-search-next
+                >
+                  <ChevronDownIcon aria-hidden />
+                </Button>
+              </div>
+              <span id="json-search-hint" className="hidden text-caption text-ink-subtle sm:inline">
+                Enter next · Shift+Enter previous
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 md:min-h-0 md:flex-1 md:flex-row">
+            {view === "code" ? (
+              <CodeView
+                lines={codeLines}
+                selectedPath={selectedPath}
+                matchedPaths={searchMatchPaths}
+                onSelectPath={revealPath}
+              />
+            ) : (
+            <div
+              ref={scrollRef}
+              id="json-tree-panel"
+              role="tabpanel"
+              aria-labelledby="view-tab-tree"
+              className="h-[60svh] min-w-0 shrink-0 overflow-auto border-y border-hairline bg-surface md:h-auto md:min-h-0 md:flex-1"
+            >
+              <ul
+                role="tree"
+                aria-label="JSON tree"
+                className="relative m-0 list-none p-0"
+                style={{ height: rowVirtualizer.getTotalSize() }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const node = visibleNodes[virtualRow.index]
+                  if (node === undefined) {
+                    return null
                   }
-                  level={Math.max(1, node.depth - focusedNode.depth + 1)}
-                  {...treeItemPosition(root, focusedNode, node)}
-                  onToggle={() => togglePath(node)}
-                  onSelect={() => selectPath(node.path)}
-                  onKeyDown={(event) => handleNodeKeyDown(event, node)}
-                  rowRef={(element) => setRowRef(path, element)}
-                  index={virtualRow.index}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                />
-              )
-            })}
-          </ul>
-        </div>
-        )}
-        <StructuralMinimap
-          root={focusedNode}
-          selectedPath={selectedPathKey}
-          onSelectPath={revealPath}
-        />
-      </div>
-      <CommandPalette
-        key={paletteOpen ? "open" : "closed"}
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        canFocus={isJsonContainerNode(selectedNode) && selectedPathKey !== focusedPathKey}
-        isFocused={focusedPath.length > 0}
-        onSearchQuery={(query) => {
-          setSearchQuery(query)
-          focusDocumentSearch()
-        }}
-        onGoToPath={() => setPathDialogOpen(true)}
-        onFocusSearch={focusDocumentSearch}
-        onFocusSelected={focusSelectedNode}
-        onExitFocus={() => focusPath(root.path)}
-        onCopyPath={copySelectedPath}
-        onCloseDocument={onCloseDocument}
-        view={view}
-        onShowCodeView={() => setView("code")}
-        onShowTreeView={() => setView("tree")}
-      />
-      <JsonPathDialog
-        key={pathDialogOpen ? "open" : "closed"}
-        open={pathDialogOpen}
-        initialPath={formatJsonPath(selectedNode.path)}
-        onOpenChange={(open) => {
-          setPathDialogOpen(open)
-          if (open) {
-            setPaletteOpen(false)
-          }
-        }}
-        onNavigate={navigateToPath}
-      />
-    </section>
+                  const path = serializeJsonPath(node.path)
+                  return (
+                    <TreeRow
+                      key={virtualRow.key}
+                      node={node}
+                      expanded={expandedNodes.has(node)}
+                      selected={jsonPathsEqual(node.path, selectedPath)}
+                      matched={searchMatchNodes.has(node)}
+                      currentMatch={
+                        selectedMatchIndex !== -1 && jsonPathsEqual(node.path, selectedPath)
+                      }
+                      hiddenMatchCount={hiddenMatchCountByPath.get(path) ?? 0}
+                      level={Math.max(1, node.depth - focusedNode.depth + 1)}
+                      {...treeItemPosition(root, focusedNode, node)}
+                      onToggle={() => togglePath(node)}
+                      onSelect={() => selectPath(node.path)}
+                      onKeyDown={(event) => handleNodeKeyDown(event, node)}
+                      rowRef={(element) => setRowRef(path, element)}
+                      index={virtualRow.index}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    />
+                  )
+                })}
+              </ul>
+            </div>
+            )}
+            <StructuralMinimap
+              root={focusedNode}
+              selectedPath={selectedPathKey}
+              onSelectPath={revealPath}
+            />
+          </div>
+          <CommandPalette
+            key={paletteOpen ? "palette-open" : "palette-closed"}
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            canFocus={canFocusSelected}
+            isFocused={focusedPath.length > 0}
+            onSearchQuery={(query) => {
+              setSearchQuery(query)
+              focusDocumentSearch()
+            }}
+            onGoToPath={() => setPathDialogOpen(true)}
+            onFocusSearch={focusDocumentSearch}
+            onFocusSelected={focusSelectedNode}
+            onExitFocus={() => focusPath(root.path)}
+            onCopyPath={copySelectedPath}
+            onCloseDocument={onCloseDocument}
+            view={view}
+            onShowCodeView={() => setView("code")}
+            onShowTreeView={() => setView("tree")}
+          />
+          <JsonPathDialog
+            key={pathDialogOpen ? "path-open" : "path-closed"}
+            open={pathDialogOpen}
+            initialPath={formatJsonPath(selectedNode.path)}
+            onOpenChange={(open) => {
+              setPathDialogOpen(open)
+              if (open) {
+                setPaletteOpen(false)
+              }
+            }}
+            onNavigate={navigateToPath}
+          />
+        </section>
+      </main>
+    </div>
   )
 }
