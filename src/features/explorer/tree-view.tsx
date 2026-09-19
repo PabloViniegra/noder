@@ -42,7 +42,9 @@ import {
   getJsonNodeAtPath,
   isJsonContainerNode,
 } from "@/core/json/traverse"
+import { formatJsonCode } from "@/core/json/format"
 import { searchJson } from "@/core/json/search"
+import { CodeView } from "@/features/explorer/code-view"
 import { CommandPalette } from "@/features/explorer/command-palette"
 import { JsonPathDialog } from "@/features/explorer/json-path-dialog"
 import { StructuralMinimap } from "@/features/explorer/structural-minimap"
@@ -50,6 +52,7 @@ import { cn } from "@/lib/utils"
 
 type ContainerNode = JsonObjectNode | JsonArrayNode
 type CopyStatus = "idle" | "copied" | "error"
+type ExplorerView = "tree" | "code"
 type TreeItemPosition = {
   readonly positionInSet: number
   readonly setSize: number
@@ -359,6 +362,65 @@ function TreeRow({
   )
 }
 
+function ViewSwitch({
+  view,
+  onChange,
+}: {
+  readonly view: ExplorerView
+  readonly onChange: (view: ExplorerView) => void
+}) {
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: ExplorerView) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+      return
+    }
+    event.preventDefault()
+    onChange(current === "tree" ? "code" : "tree")
+  }
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Document view"
+      className="inline-flex overflow-hidden rounded-md border border-hairline"
+    >
+      <Button
+        type="button"
+        id="view-tab-tree"
+        role="tab"
+        aria-selected={view === "tree"}
+        aria-controls="json-tree-panel"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "min-h-11 rounded-none sm:min-h-7",
+          view === "tree" && "bg-selection hover:bg-selection",
+        )}
+        onClick={() => onChange("tree")}
+        onKeyDown={(event) => handleKeyDown(event, "tree")}
+      >
+        Tree
+      </Button>
+      <Button
+        type="button"
+        id="view-tab-code"
+        role="tab"
+        aria-selected={view === "code"}
+        aria-controls="json-code-panel"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "min-h-11 rounded-none sm:min-h-7",
+          view === "code" && "bg-selection hover:bg-selection",
+        )}
+        onClick={() => onChange("code")}
+        onKeyDown={(event) => handleKeyDown(event, "code")}
+      >
+        Code
+      </Button>
+    </div>
+  )
+}
+
 export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -370,6 +432,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [pathDialogOpen, setPathDialogOpen] = useState(false)
+  const [view, setView] = useState<ExplorerView>("tree")
   const focusedNode = getJsonNodeAtPath(root, focusedPath) ?? root
   const visibleNodes = useMemo(
     () => flattenVisibleNodes(focusedNode, expandedNodes),
@@ -389,6 +452,14 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   const searchMatchNodes = useMemo(
     () => new Set(searchMatches.map((match) => match.node)),
     [searchMatches],
+  )
+  const searchMatchPaths = useMemo(
+    () => new Set(searchMatches.map((match) => serializeJsonPath(match.node.path))),
+    [searchMatches],
+  )
+  const codeLines = useMemo(
+    () => (view === "code" ? formatJsonCode(focusedNode) : []),
+    [focusedNode, view],
   )
   const selectedMatchIndex = searchMatches.findIndex((match) =>
     jsonPathsEqual(match.node.path, selectedPath),
@@ -411,7 +482,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   })
 
   useEffect(() => {
-    if (selectedIndex === -1) {
+    if (view !== "tree" || selectedIndex === -1) {
       return
     }
 
@@ -420,7 +491,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
       rowRefs.current.get(selectedPathKey)?.focus()
     })
     return () => window.cancelAnimationFrame(focusFrame)
-  }, [rowVirtualizer, selectedIndex, selectedPathKey])
+  }, [rowVirtualizer, selectedIndex, selectedPathKey, view])
 
   useEffect(() => {
     function handleGlobalKeyDown(event: globalThis.KeyboardEvent) {
@@ -651,10 +722,17 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <Breadcrumbs path={focusedPath} onNavigate={focusPath} />
-          <h2 id="tree-view-title" className="mt-2 font-heading text-lg font-medium text-ink">
-            Tree View
-          </h2>
-          <p className="mt-1 text-body text-ink-subtle">Expand branches to inspect the structure.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h2 id="tree-view-title" className="font-heading text-lg font-medium text-ink">
+              {view === "tree" ? "Tree View" : "Code View"}
+            </h2>
+            <ViewSwitch view={view} onChange={setView} />
+          </div>
+          <p className="mt-1 text-body text-ink-subtle">
+            {view === "tree"
+              ? "Expand branches to inspect the structure."
+              : "Pretty-print of the focused branch."}
+          </p>
           <code data-selected-path className="mt-2 block truncate font-mono text-caption text-ink-subtle">
             {formatJsonPath(selectedNode.path)}
           </code>
@@ -808,8 +886,19 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
         </div>
       </div>
       <div className="flex flex-col gap-4 md:min-h-0 md:flex-1 md:flex-row">
+        {view === "code" ? (
+          <CodeView
+            lines={codeLines}
+            selectedPath={selectedPath}
+            matchedPaths={searchMatchPaths}
+            onSelectPath={revealPath}
+          />
+        ) : (
         <div
           ref={scrollRef}
+          id="json-tree-panel"
+          role="tabpanel"
+          aria-labelledby="view-tab-tree"
           className="min-h-0 min-w-0 flex-1 overflow-auto border-y border-hairline bg-surface"
         >
           <ul
@@ -854,6 +943,7 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
             })}
           </ul>
         </div>
+        )}
         <StructuralMinimap
           root={focusedNode}
           selectedPath={selectedPathKey}
@@ -876,6 +966,9 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
         onExitFocus={() => focusPath(root.path)}
         onCopyPath={copySelectedPath}
         onCloseDocument={onCloseDocument}
+        view={view}
+        onShowCodeView={() => setView("code")}
+        onShowTreeView={() => setView("tree")}
       />
       <JsonPathDialog
         key={pathDialogOpen ? "open" : "closed"}

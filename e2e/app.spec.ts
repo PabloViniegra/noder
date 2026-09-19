@@ -388,6 +388,51 @@ test("navigates and selects minimap segments with the keyboard", async ({ page }
   await expect(page.locator("[data-selected-path]")).toHaveText("$")
 })
 
+test("pretty-prints the focused branch in code view and keeps the selected path", async ({
+  page,
+}) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"user":{"id":1},"ok":true}')
+  await input.press("Enter")
+
+  await page.getByRole("tab", { name: "Code" }).click()
+  await expect(page.getByRole("heading", { name: "Code View" })).toBeVisible()
+  await expect(page.getByRole("tree", { name: "JSON tree" })).toHaveCount(0)
+
+  const code = page.getByRole("listbox", { name: "JSON code" })
+  await expect(code.getByRole("option", { name: "{", exact: true })).toBeVisible()
+  await expect(code.getByRole("option", { name: '"ok": true' })).toBeVisible()
+
+  await code.getByRole("option", { name: '"id": 1' }).click()
+  await expect(page.locator("[data-selected-path]")).toHaveText("$.user.id")
+
+  await page.getByRole("tab", { name: "Tree" }).click()
+  await expect(page.getByRole("heading", { name: "Tree View" })).toBeVisible()
+  await expect(page.getByRole("treeitem").filter({ hasText: "id" })).toBeVisible()
+  await expect(page.locator("[data-selected-path]")).toHaveText("$.user.id")
+})
+
+test("opens code view from the command palette and respects focus mode", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Open JSON" })
+  await input.fill('{"user":{"id":1},"ok":true}')
+  await input.press("Enter")
+
+  await page.getByRole("treeitem").filter({ hasText: "user" }).click()
+  await page.getByRole("button", { name: "Focus branch" }).click()
+
+  await page.keyboard.press("Control+k")
+  const palette = page.getByRole("dialog")
+  await palette.getByRole("combobox", { name: "Search commands" }).fill("code view")
+  await palette.getByRole("option", { name: "Show code view", exact: true }).click()
+
+  const code = page.getByRole("listbox", { name: "JSON code" })
+  await expect(page.getByRole("heading", { name: "Code View" })).toBeVisible()
+  await expect(code.getByRole("option", { name: '"id": 1' })).toBeVisible()
+  await expect(code.getByRole("option", { name: '"ok": true' })).toHaveCount(0)
+})
+
 test("shows an error and preserves a pasted invalid JSON file", async ({ page }) => {
   await page.goto("/")
   await page.evaluate(() => {

@@ -1,8 +1,10 @@
 import { Dialog } from "@base-ui/react/dialog"
 import { Command as CommandPrimitive } from "cmdk"
 import {
+  BracesIcon,
   ClipboardIcon,
   FocusIcon,
+  ListTreeIcon,
   LogOutIcon,
   SearchIcon,
   XIcon,
@@ -24,6 +26,9 @@ type CommandPaletteProps = {
   readonly onExitFocus: () => void
   readonly onCopyPath: () => void
   readonly onCloseDocument: () => void
+  readonly view: "tree" | "code"
+  readonly onShowCodeView: () => void
+  readonly onShowTreeView: () => void
 }
 
 type PaletteItemProps = {
@@ -71,6 +76,9 @@ export function CommandPalette({
   onExitFocus,
   onCopyPath,
   onCloseDocument,
+  view,
+  onShowCodeView,
+  onShowTreeView,
 }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState("")
@@ -175,6 +183,21 @@ export function CommandPalette({
                   value="copy selected path jsonpath"
                   onSelect={() => runAction(onCopyPath)}
                 />
+                {view === "tree" ? (
+                  <PaletteItem
+                    icon={BracesIcon}
+                    label="Show code view"
+                    value="show code view pretty print"
+                    onSelect={() => runAction(onShowCodeView)}
+                  />
+                ) : (
+                  <PaletteItem
+                    icon={ListTreeIcon}
+                    label="Show tree view"
+                    value="show tree view"
+                    onSelect={() => runAction(onShowTreeView)}
+                  />
+                )}
                 <PaletteItem
                   icon={XIcon}
                   label="Close document"
