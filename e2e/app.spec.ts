@@ -8,6 +8,17 @@ test("loads the empty command well", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible()
 })
 
+test("provides a keyboard skip link to the main content", async ({ page }) => {
+  await page.goto("/")
+  const skipLink = page.getByRole("link", { name: "Skip to main content" })
+
+  await expect(skipLink).toHaveAttribute("href", "#main-content")
+  await skipLink.focus()
+  await skipLink.press("Enter")
+
+  await expect(page.locator("#main-content")).toBeFocused()
+})
+
 test("exposes indexable metadata without JavaScript", async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false })
   const page = await context.newPage()
@@ -449,6 +460,47 @@ test("navigates and selects minimap segments with the keyboard", async ({ page }
   await page.keyboard.press("Home")
   await page.keyboard.press("Enter")
   await expect(page.locator("[data-selected-path]")).toHaveText("$")
+})
+
+test("keeps view tab focus while switching with arrow keys", async ({ page }) => {
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
+  await input.fill('{"ok":true}')
+  await input.press("Enter")
+
+  const treeTab = page.getByRole("tab", { name: "Tree" })
+  const codeTab = page.getByRole("tab", { name: "Code" })
+  await treeTab.focus()
+  await treeTab.press("ArrowRight")
+
+  await expect(codeTab).toHaveAttribute("aria-selected", "true")
+  await expect(codeTab).toBeFocused()
+
+  await codeTab.press("ArrowLeft")
+  await expect(treeTab).toHaveAttribute("aria-selected", "true")
+  await expect(treeTab).toBeFocused()
+})
+
+test("keeps visible minimap controls at least 24px high on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 823 })
+  await page.goto("/")
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
+  const payload = Object.fromEntries(
+    Array.from({ length: 4 }, (_, branch) => [
+      `branch-${branch}`,
+      Object.fromEntries(Array.from({ length: 8 }, (_, key) => [`key-${key}`, key])),
+    ]),
+  )
+  await input.fill(JSON.stringify(payload))
+  await input.press("Enter")
+
+  const buttons = page.getByRole("region", { name: "Structure" }).getByRole("button")
+  await expect(buttons).toHaveCount(5)
+  const heights = await buttons.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().height),
+  )
+
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(24)
 })
 
 test("pretty-prints the focused branch in code view and keeps the selected path", async ({

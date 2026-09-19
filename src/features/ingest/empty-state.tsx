@@ -223,6 +223,9 @@ export function EmptyState() {
       onPointerLeave={onPointerLeave}
       onPointerMove={onPointerMove}
     >
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <GlassFilter />
       <StructuralField dragging={dragging} />
       <header
@@ -232,7 +235,11 @@ export function EmptyState() {
         <GlassLayers />
         <img src="/logo.svg" alt="Noder" className="relative h-6 w-auto" />
       </header>
-      <main className="relative z-10 flex min-h-svh items-center justify-center px-4 pt-16 pb-8">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="relative z-10 flex min-h-svh items-center justify-center px-4 pt-16 pb-8"
+      >
         <section
           ref={wellRef}
           aria-labelledby="noder-title"

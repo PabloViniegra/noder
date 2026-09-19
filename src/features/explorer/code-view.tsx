@@ -78,7 +78,10 @@ export function CodeView({ lines, selectedPath, matchedPaths, onSelectPath }: Co
   }, [activeLine, pathLineIndex, selectedPath, selectedPathKey])
 
   useEffect(() => {
-    if (lines[activeIndex] === undefined) {
+    if (
+      lines[activeIndex] === undefined ||
+      document.activeElement?.getAttribute("role") === "tab"
+    ) {
       return
     }
     rowVirtualizer.scrollToIndex(activeIndex, { align: "auto" })

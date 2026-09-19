@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 
 const HEADER_PX = 20
 const HEADER_PX_COARSE = 28
-const MIN_BAND_PX = 16
+const MIN_BAND_PX = 24
 const DEPTH_INDENT_PX = 8
 
 type StructuralMinimapProps = {
@@ -87,7 +87,7 @@ export function StructuralMinimap({
 
   return (
     <div
-      className="flex h-32 flex-col gap-1 md:h-auto md:w-36 md:shrink-0 md:self-stretch"
+      className="flex h-40 flex-col gap-1 md:h-auto md:w-36 md:shrink-0 md:self-stretch"
     >
       <h3
         id="structure-minimap-title"

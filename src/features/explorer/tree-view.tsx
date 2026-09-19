@@ -391,12 +391,24 @@ function ViewSwitch({
   readonly view: ExplorerView
   readonly onChange: (view: ExplorerView) => void
 }) {
+  const treeTabRef = useRef<HTMLButtonElement>(null)
+  const codeTabRef = useRef<HTMLButtonElement>(null)
+
+  function focusTab(nextView: ExplorerView) {
+    window.requestAnimationFrame(() => {
+      const tab = nextView === "tree" ? treeTabRef.current : codeTabRef.current
+      tab?.focus()
+    })
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: ExplorerView) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
       return
     }
     event.preventDefault()
-    onChange(current === "tree" ? "code" : "tree")
+    const nextView = current === "tree" ? "code" : "tree"
+    onChange(nextView)
+    focusTab(nextView)
   }
 
   return (
@@ -408,9 +420,11 @@ function ViewSwitch({
       <Button
         type="button"
         id="view-tab-tree"
+        ref={treeTabRef}
         role="tab"
         aria-selected={view === "tree"}
         aria-controls="json-tree-panel"
+        tabIndex={view === "tree" ? 0 : -1}
         variant="ghost"
         size="sm"
         className={cn(
@@ -425,9 +439,11 @@ function ViewSwitch({
       <Button
         type="button"
         id="view-tab-code"
+        ref={codeTabRef}
         role="tab"
         aria-selected={view === "code"}
         aria-controls="json-code-panel"
+        tabIndex={view === "code" ? 0 : -1}
         variant="ghost"
         size="sm"
         className={cn(
@@ -570,7 +586,11 @@ export function TreeView({
   }, [focusedNode, root, searchQuery, useSearchWorker])
 
   useEffect(() => {
-    if (view !== "tree" || selectedIndex === -1) {
+    if (
+      view !== "tree" ||
+      selectedIndex === -1 ||
+      document.activeElement?.getAttribute("role") === "tab"
+    ) {
       return
     }
 
@@ -804,6 +824,9 @@ export function TreeView({
 
   return (
     <div className="relative flex min-h-svh flex-col overflow-x-clip bg-canvas md:h-svh md:overflow-hidden">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <header className="glass sticky top-2 z-20 mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl px-2 sm:px-3">
         <h1 className="shrink-0">
           <img src="/logo.svg" alt="Noder" className="h-6 w-auto" />
@@ -849,7 +872,11 @@ export function TreeView({
           </Button>
         </div>
       </header>
-      <main className="flex min-h-0 flex-col px-2 pt-3 pb-4 sm:px-4 md:flex-1">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex min-h-0 flex-col px-2 pt-3 pb-4 sm:px-4 md:flex-1"
+      >
         <section
           aria-labelledby="tree-view-title"
           className="flex flex-col gap-3 md:min-h-0 md:flex-1"
