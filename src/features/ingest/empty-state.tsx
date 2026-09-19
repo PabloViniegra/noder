@@ -230,7 +230,7 @@ export function EmptyState() {
         className="glass-lens absolute inset-x-2 top-2 z-20 flex h-11 items-center rounded-xl px-3"
       >
         <GlassLayers />
-        <p className="relative font-heading text-title-sm text-ink">Noder</p>
+        <img src="/logo.svg" alt="Noder" className="relative h-6 w-auto" />
       </header>
       <main className="relative z-10 flex min-h-svh items-center justify-center px-4 pt-16 pb-8">
         <section

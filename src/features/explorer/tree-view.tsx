@@ -758,7 +758,9 @@ export function TreeView({ root, stats, onCloseDocument }: TreeViewProps) {
   return (
     <div className="relative flex min-h-svh flex-col overflow-x-clip bg-canvas md:h-svh md:overflow-hidden">
       <header className="glass sticky top-2 z-20 mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl px-2 sm:px-3">
-        <h1 className="shrink-0 font-heading text-title-sm text-ink">Noder</h1>
+        <h1 className="shrink-0">
+          <img src="/logo.svg" alt="Noder" className="h-6 w-auto" />
+        </h1>
         <span className="hidden shrink-0 font-mono text-caption text-ink-subtle sm:inline">
           Local only
         </span>
