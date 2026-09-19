@@ -244,12 +244,12 @@ export function EmptyState() {
           <div className="relative flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <h1 id="noder-title" className="font-heading text-title text-balance text-ink">
-                Open JSON
+                Private JSON viewer and explorer
               </h1>
               <p id={lineId} className="text-body text-pretty text-ink-muted">
                 {dragging
                   ? "Drop JSON to open — it never leaves this browser."
-                  : "It never leaves this browser."}
+                  : "Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code view. Your data never leaves your browser."}
               </p>
               {shownError !== null && (
                 <div id={errorId} role="alert" className="flex flex-col gap-1">

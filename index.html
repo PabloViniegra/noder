@@ -5,10 +5,60 @@
     <link rel="icon" type="image/svg+xml" href="/noder-favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#08090a" />
-    <title>Noder</title>
+    <meta
+      name="description"
+      content="Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code view. Your data never leaves your browser."
+    />
+    <link rel="canonical" href="https://noder-gamma.vercel.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Noder" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="JSON Viewer &amp; Explorer — Explore JSON Locally | Noder" />
+    <meta
+      property="og:description"
+      content="Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code view. Your data never leaves your browser."
+    />
+    <meta property="og:url" content="https://noder-gamma.vercel.app/" />
+    <meta property="og:image" content="https://noder-gamma.vercel.app/noder-social-card.png" />
+    <meta property="og:image:alt" content="Noder private JSON viewer and explorer" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="JSON Viewer &amp; Explorer — Explore JSON Locally | Noder" />
+    <meta
+      name="twitter:description"
+      content="Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code view. Your data never leaves your browser."
+    />
+    <meta name="twitter:image" content="https://noder-gamma.vercel.app/noder-social-card.png" />
+    <meta name="twitter:image:alt" content="Noder private JSON viewer and explorer" />
+    <title>JSON Viewer &amp; Explorer — Explore JSON Locally | Noder</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Noder",
+        "url": "https://noder-gamma.vercel.app/",
+        "description": "Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code view. Your data never leaves your browser.",
+        "image": "https://noder-gamma.vercel.app/noder-social-card.png",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any"
+      }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main id="seo-fallback">
+        <h1>Private JSON viewer and explorer</h1>
+        <p>
+          Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code
+          view. Your data never leaves your browser.
+        </p>
+        <noscript>
+          <p>Enable JavaScript to open and explore JSON files with Noder.</p>
+        </noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

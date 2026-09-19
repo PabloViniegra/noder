@@ -142,7 +142,7 @@ async function measureWidePayload(
   const payload = makePayload(records)
   await page.goto("/")
   const heapBefore = await readHeap(cdp)
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
 
   await input.fill(payload.text)
   const loadMs = await measure(page, `load-${records}`, async () => {
@@ -240,7 +240,7 @@ test("@performance measures navigation through deep JSON documents", async ({ pa
     const payload = makeDeepPayload(depth)
     await page.goto("/")
     const heapBefore = await readHeap(cdp)
-    const input = page.getByRole("textbox", { name: "Open JSON" })
+    const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
 
     await input.fill(payload.text)
     const loadMs = await measure(page, `deep-load-${depth}`, async () => {

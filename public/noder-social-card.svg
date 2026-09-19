@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <title>Noder — private JSON viewer and explorer</title>
+  <defs>
+    <linearGradient id="accent" x1="132" y1="514" x2="360" y2="286" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5E6AD2" />
+      <stop offset="1" stop-color="#828FFF" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(856 130) rotate(132) scale(530 650)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5E6AD2" stop-opacity="0.22" />
+      <stop offset="1" stop-color="#08090A" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#08090A" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+  <path d="M0 522C195 470 315 568 498 516C683 463 736 332 1200 380" stroke="#23252A" stroke-width="2" />
+  <path d="M0 560C195 508 315 606 498 554C683 501 736 370 1200 418" stroke="#191A1B" stroke-width="2" />
+  <rect x="88" y="82" width="72" height="72" rx="20" fill="#0F1011" stroke="#34343A" stroke-width="2" />
+  <path d="M107 135V101L141 135V101" stroke="url(#accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="107" cy="101" r="4" fill="#F7F8F8" />
+  <circle cx="107" cy="135" r="4" fill="#F7F8F8" />
+  <circle cx="141" cy="101" r="4" fill="#828FFF" />
+  <circle cx="141" cy="135" r="4" fill="#F7F8F8" />
+  <text x="184" y="137" fill="#F7F8F8" font-family="Arial, sans-serif" font-size="52" font-weight="700" letter-spacing="-1.5">Noder</text>
+  <text x="88" y="322" fill="#F7F8F8" font-family="Arial, sans-serif" font-size="66" font-weight="700" letter-spacing="-2.5">Private JSON viewer</text>
+  <text x="88" y="400" fill="#F7F8F8" font-family="Arial, sans-serif" font-size="66" font-weight="700" letter-spacing="-2.5">and explorer</text>
+  <text x="91" y="466" fill="#D0D6E0" font-family="Arial, sans-serif" font-size="27" font-weight="400">Explore structure locally. Your data never leaves your browser.</text>
+</svg>

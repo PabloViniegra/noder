@@ -2,10 +2,31 @@ import { expect, test } from "@playwright/test"
 
 test("loads the empty command well", async ({ page }) => {
   await page.goto("/")
-  await expect(page.getByRole("heading", { name: "Open JSON" })).toBeVisible()
-  await expect(page.getByText("It never leaves this browser.")).toBeVisible()
-  await expect(page.getByRole("textbox", { name: "Open JSON" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Private JSON viewer and explorer" })).toBeVisible()
+  await expect(page.getByText("Your data never leaves your browser.")).toBeVisible()
+  await expect(page.getByRole("textbox", { name: "Private JSON viewer and explorer" })).toBeVisible()
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible()
+})
+
+test("exposes indexable metadata without JavaScript", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false })
+  const page = await context.newPage()
+
+  await page.goto("/")
+  await expect(page).toHaveTitle("JSON Viewer & Explorer — Explore JSON Locally | Noder")
+  await expect(page.getByRole("heading", { name: "Private JSON viewer and explorer" })).toBeVisible()
+  expect(await page.content()).toContain("Enable JavaScript to open and explore JSON files with Noder.")
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    "content",
+    "Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code view. Your data never leaves your browser.",
+  )
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    "https://noder-gamma.vercel.app/",
+  )
+  expect(await page.content()).toContain('"@type": "WebApplication"')
+
+  await context.close()
 })
 
 test("opens a JSON file and leaves the empty state", async ({ page }) => {
@@ -25,7 +46,7 @@ test("opens a JSON file and leaves the empty state", async ({ page }) => {
 
 test("guards closing a document behind a confirmation", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"ok":true}')
   await input.press("Enter")
   await expect(page.getByRole("heading", { name: "Tree View" })).toBeVisible()
@@ -40,7 +61,7 @@ test("guards closing a document behind a confirmation", async ({ page }) => {
 
   await page.getByRole("button", { name: "Close document" }).click()
   await page.getByRole("dialog").getByRole("button", { name: "Close document" }).click()
-  await expect(page.getByRole("heading", { name: "Open JSON" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Private JSON viewer and explorer" })).toBeVisible()
 })
 
 test("explorer renders without duplicate-key console errors", async ({ page }) => {
@@ -51,7 +72,7 @@ test("explorer renders without duplicate-key console errors", async ({ page }) =
     }
   })
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user":{"id":1},"items":[true]}')
   await input.press("Enter")
   await expect(page.getByRole("heading", { name: "Tree View" })).toBeVisible()
@@ -61,7 +82,7 @@ test("explorer renders without duplicate-key console errors", async ({ page }) =
 
 test("renders a progressive tree and expands a branch with the keyboard", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user":{"id":1},"items":[true]}')
   await input.press("Enter")
 
@@ -79,7 +100,7 @@ test("renders a progressive tree and expands a branch with the keyboard", async 
 
 test("exposes relative levels and sibling positions in the JSON tree", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
   await input.press("Enter")
 
@@ -103,7 +124,7 @@ test("exposes relative levels and sibling positions in the JSON tree", async ({ 
 
 test("shows document statistics for the loaded JSON", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   const text = '{"user":{"id":1,"active":true},"tags":["json",null]}'
   await input.fill(text)
   await input.press("Enter")
@@ -121,7 +142,7 @@ test("shows document statistics for the loaded JSON", async ({ page }) => {
 
 test("navigates to a nested node with JSONPath", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user-name":{"profile.name":"Ada"}}')
   await input.press("Enter")
 
@@ -143,7 +164,7 @@ test("navigates to a nested node with JSONPath", async ({ page }) => {
 
 test("keeps the JSONPath dialog open for an unknown node", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user":{"id":1}}')
   await input.press("Enter")
 
@@ -164,7 +185,7 @@ test("keeps the JSONPath dialog open for an unknown node", async ({ page }) => {
 
 test("does not stack the command palette over the JSONPath dialog", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user":{"id":1}}')
   await input.press("Enter")
 
@@ -180,7 +201,7 @@ test("does not stack the command palette over the JSONPath dialog", async ({ pag
 
 test("leaves focus mode when JSONPath targets another branch", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
   await input.press("Enter")
 
@@ -205,7 +226,7 @@ test("navigates tree rows and copies the selected JSONPath", async ({ page, cont
     origin: "http://127.0.0.1:5173",
   })
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"profile":{"name":"Ada"}}],"meta":{"ok":true}}')
   await input.press("Enter")
 
@@ -225,7 +246,7 @@ test("navigates tree rows and copies the selected JSONPath", async ({ page, cont
 
 test("focuses a branch and returns through breadcrumbs", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
   await input.press("Enter")
 
@@ -247,7 +268,7 @@ test("focuses a branch and returns through breadcrumbs", async ({ page }) => {
 
 test("searches keys and values and reveals each match", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"name":"Ada","role":"admin"}],"meta":{"owner":"Ada"}}')
   await input.press("Enter")
 
@@ -273,7 +294,7 @@ test("searches keys and values and reveals each match", async ({ page }) => {
 
 test("scrolls to a search match outside the virtualized viewport", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   const payload = Object.fromEntries(
     Array.from({ length: 80 }, (_, index) => [`item-${index}`, index === 79 ? "target" : "other"]),
   )
@@ -301,7 +322,7 @@ test("scrolls to a search match outside the virtualized viewport", async ({ page
 
 test("opens the command palette with Ctrl+K and sends a search query", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user":{"name":"Ada"},"active":true}')
   await input.press("Enter")
 
@@ -328,7 +349,7 @@ test("opens the command palette with Ctrl+K and sends a search query", async ({ 
 test("keeps the loaded explorer usable at 320px with a long value", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 })
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   const value = "x".repeat(1200)
   await input.fill(JSON.stringify({ message: value }))
   await input.press("Enter")
@@ -361,13 +382,13 @@ test("invalid JSON stays on the well with an error", async ({ page }) => {
     buffer: Buffer.from("{"),
   })
   await expect(page.getByRole("alert")).toContainText("This isn't valid JSON.")
-  await expect(page.getByRole("textbox", { name: "Open JSON" })).toHaveValue("{")
+  await expect(page.getByRole("textbox", { name: "Private JSON viewer and explorer" })).toHaveValue("{")
   await expect(page.getByRole("button", { name: "Open file" })).toBeVisible()
 })
 
 test("selects a heavier branch from the structure minimap", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
   await input.press("Enter")
 
@@ -393,7 +414,7 @@ test("selects a heavier branch from the structure minimap", async ({ page }) => 
 
 test("zooms the structure minimap to the focused branch", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
   await input.press("Enter")
 
@@ -407,7 +428,7 @@ test("zooms the structure minimap to the focused branch", async ({ page }) => {
 
 test("navigates and selects minimap segments with the keyboard", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"users":[{"id":1}],"meta":{"ok":true}}')
   await input.press("Enter")
 
@@ -434,7 +455,7 @@ test("pretty-prints the focused branch in code view and keeps the selected path"
   page,
 }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user":{"id":1},"ok":true}')
   await input.press("Enter")
 
@@ -457,7 +478,7 @@ test("pretty-prints the focused branch in code view and keeps the selected path"
 
 test("opens code view from the command palette and respects focus mode", async ({ page }) => {
   await page.goto("/")
-  const input = page.getByRole("textbox", { name: "Open JSON" })
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
   await input.fill('{"user":{"id":1},"ok":true}')
   await input.press("Enter")
 
@@ -484,5 +505,5 @@ test("shows an error and preserves a pasted invalid JSON file", async ({ page })
   })
 
   await expect(page.getByRole("alert")).toContainText("This isn't valid JSON.")
-  await expect(page.getByRole("textbox", { name: "Open JSON" })).toHaveValue("{")
+  await expect(page.getByRole("textbox", { name: "Private JSON viewer and explorer" })).toHaveValue("{")
 })

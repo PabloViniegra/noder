@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://noder-gamma.vercel.app/sitemap.xml
