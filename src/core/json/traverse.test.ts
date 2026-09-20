@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { parseJson } from "./parse"
-import { flattenVisibleNodes, getJsonChildPosition, getJsonNodeAtPath } from "./traverse"
+import {
+  flattenVisibleNodes,
+  getJsonChildPosition,
+  getJsonNodeAtPath,
+  summarizeJsonNode,
+} from "./traverse"
 
 describe("flattenVisibleNodes", () => {
   it("keeps the root visible while descendants stay collapsed", () => {
@@ -67,5 +72,45 @@ describe("flattenVisibleNodes", () => {
     }
 
     expect(getJsonChildPosition(result.document.root, second)).toBe(1)
+  })
+})
+
+describe("summarizeJsonNode", () => {
+  it("counts a document from the root", () => {
+    const result = parseJson('{"user":{"id":1},"items":[true]}')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      throw new Error("expected a parsed document")
+    }
+
+    expect(summarizeJsonNode(result.document.root)).toEqual({
+      nodes: 5,
+      objects: 2,
+      arrays: 1,
+      maxDepth: 2,
+    })
+  })
+
+  it("counts a focused branch relative to that node", () => {
+    const result = parseJson('{"user":{"id":1},"items":[true]}')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      throw new Error("expected a parsed document")
+    }
+
+    const user = getJsonNodeAtPath(result.document.root, ["user"])
+    expect(user).not.toBeNull()
+    if (user === null) {
+      throw new Error("expected the user node")
+    }
+
+    expect(summarizeJsonNode(user)).toEqual({
+      nodes: 2,
+      objects: 1,
+      arrays: 0,
+      maxDepth: 1,
+    })
   })
 })

@@ -1,5 +1,10 @@
 import { expect, test, type CDPSession, type Page } from "@playwright/test"
 
+async function openJsonPath(page: Page) {
+  await page.keyboard.press("Control+k")
+  await page.getByRole("dialog").getByRole("option", { name: "Go to JSONPath", exact: true }).click()
+}
+
 type PerformanceResult = {
   readonly records: number
   readonly bytes: number
@@ -142,7 +147,7 @@ async function measureWidePayload(
   const payload = makePayload(records)
   await page.goto("/")
   const heapBefore = await readHeap(cdp)
-  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
+  const input = page.getByRole("textbox", { name: "JSON" })
 
   await input.fill(payload.text)
   const loadMs = await measure(page, `load-${records}`, async () => {
@@ -160,7 +165,7 @@ async function measureWidePayload(
     })
   })
 
-  await page.getByRole("button", { name: "Go to JSONPath" }).click()
+  await openJsonPath(page)
   const pathDialog = page.getByRole("dialog")
   const pathInput = pathDialog.getByRole("textbox", { name: "JSONPath" })
   await pathInput.fill(payload.targetPath)
@@ -240,7 +245,7 @@ test("@performance measures navigation through deep JSON documents", async ({ pa
     const payload = makeDeepPayload(depth)
     await page.goto("/")
     const heapBefore = await readHeap(cdp)
-    const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
+    const input = page.getByRole("textbox", { name: "JSON" })
 
     await input.fill(payload.text)
     const loadMs = await measure(page, `deep-load-${depth}`, async () => {
@@ -250,7 +255,7 @@ test("@performance measures navigation through deep JSON documents", async ({ pa
       })
     })
 
-    await page.getByRole("button", { name: "Go to JSONPath" }).click()
+    await openJsonPath(page)
     const pathDialog = page.getByRole("dialog")
     const pathInput = pathDialog.getByRole("textbox", { name: "JSONPath" })
     await pathInput.fill(payload.targetPath)

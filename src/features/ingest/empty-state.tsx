@@ -67,6 +67,7 @@ export function EmptyState() {
   const [draft, setDraft] = useState("")
   const [summary, setSummary] = useState<JsonSummary | null>(null)
   const busy = status === "reading"
+  const hasDraft = draft.trim().length > 0
   const settled = error === null || submitted === null || draft === submitted
   const shownError = settled ? error : null
   const showSummary = summary !== null && shownError === null && !busy
@@ -234,6 +235,9 @@ export function EmptyState() {
       >
         <GlassLayers />
         <img src="/logo.svg" alt="Noder" className="relative h-6 w-auto" />
+        <span className="relative ml-2 font-mono text-caption text-ink-subtle">
+          Local only
+        </span>
       </header>
       <main
         id="main-content"
@@ -251,12 +255,12 @@ export function EmptyState() {
           <div className="relative flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <h1 id="noder-title" className="font-heading text-title text-balance text-ink">
-                Private JSON viewer and explorer
+                Drop JSON here
               </h1>
               <p id={lineId} className="text-body text-pretty text-ink-muted">
                 {dragging
                   ? "Drop JSON to open — it never leaves this browser."
-                  : "Explore large JSON files locally with a visual tree, search, JSONPath, focus mode, and code view. Your data never leaves your browser."}
+                  : "It never leaves this browser."}
               </p>
               {shownError !== null && (
                 <div id={errorId} role="alert" className="flex flex-col gap-1">
@@ -265,7 +269,7 @@ export function EmptyState() {
                       ? "That file could not be read. Try another one."
                       : "This isn't valid JSON. Drop, paste, or open another file."}
                   </p>
-                  <p className="font-mono text-caption text-pretty text-ink-subtle">
+                  <p className="font-mono text-caption text-pretty text-ink-muted">
                     {shownError.message}
                   </p>
                 </div>
@@ -275,7 +279,7 @@ export function EmptyState() {
               <textarea
                 ref={jsonRef}
                 id="json-input"
-                aria-labelledby="noder-title"
+                aria-label="JSON"
                 aria-describedby={shownError === null ? lineId : `${lineId} ${errorId}`}
                 aria-invalid={shownError !== null}
                 autoComplete="off"
@@ -325,12 +329,29 @@ export function EmptyState() {
                 disabled={busy}
                 onChange={onFileChange}
               />
+              {hasDraft && (
+                <Button
+                  className="h-11 w-full sm:h-8 sm:w-auto"
+                  disabled={busy}
+                  onClick={() => ingestText(draft, "Typed JSON")}
+                >
+                  {busy ? (
+                    <>
+                      <Spinner data-icon="inline-start" />
+                      Opening…
+                    </>
+                  ) : (
+                    "Open"
+                  )}
+                </Button>
+              )}
               <Button
+                variant={hasDraft ? "outline" : "default"}
                 className="h-11 w-full sm:h-8 sm:w-auto"
                 disabled={busy}
                 onClick={() => inputRef.current?.click()}
               >
-                {busy ? (
+                {busy && !hasDraft ? (
                   <>
                     <Spinner data-icon="inline-start" />
                     Opening…
@@ -348,6 +369,14 @@ export function EmptyState() {
                 Paste
               </Button>
               <p className="pointer-events-none hidden font-mono text-caption text-ink-subtle sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+                {hasDraft ? (
+                  <>
+                    Enter to open
+                    <span aria-hidden className="text-json-punctuation">
+                      ·
+                    </span>
+                  </>
+                ) : null}
                 Paste
                 <KbdGroup>
                   <Kbd>{isMac ? "Cmd" : "Ctrl"}</Kbd>

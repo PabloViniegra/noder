@@ -4,8 +4,8 @@ import {
   ChevronRightIcon,
   ChevronUpIcon,
   CommandIcon,
-  CopyIcon,
   FocusIcon,
+  LogOutIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react"
@@ -41,6 +41,7 @@ import {
   getJsonChildPosition,
   getJsonNodeAtPath,
   isJsonContainerNode,
+  summarizeJsonNode,
 } from "@/core/json/traverse"
 import { formatJsonCode, stringifyJsonNode } from "@/core/json/format"
 import { searchJson, type JsonSearchMatch } from "@/core/json/search"
@@ -92,7 +93,8 @@ type BreadcrumbsProps = {
 }
 
 type DocumentStatsProps = {
-  readonly stats: JsonStats
+  readonly stats: Pick<JsonStats, "bytes" | "nodes" | "objects" | "arrays" | "maxDepth">
+  readonly showBytes: boolean
 }
 
 function kindClass(kind: JsonNodeKind): string {
@@ -249,41 +251,43 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`
 }
 
-function DocumentStats({ stats }: DocumentStatsProps) {
-  const metrics = [
-    { key: "bytes", label: "Size", value: formatBytes(stats.bytes) },
+function DocumentStats({ stats, showBytes }: DocumentStatsProps) {
+  const parts: Array<{ readonly key: string; readonly label: string; readonly value: string }> = []
+  if (showBytes) {
+    parts.push({ key: "bytes", label: "Size", value: formatBytes(stats.bytes) })
+  }
+  parts.push(
     { key: "nodes", label: "Nodes", value: String(stats.nodes) },
     { key: "objects", label: "Objects", value: String(stats.objects) },
     { key: "arrays", label: "Arrays", value: String(stats.arrays) },
     { key: "maxDepth", label: "Max depth", value: String(stats.maxDepth) },
-  ] as const
+  )
 
   return (
-    <section
-      aria-labelledby="document-stats-title"
+    <p
+      role="region"
+      aria-label="Document statistics"
       data-document-stats
-      className="overflow-hidden rounded-md border border-hairline"
+      className="flex min-w-0 flex-wrap items-center gap-x-2 font-mono text-caption text-ink-subtle"
     >
-      <h3 id="document-stats-title" className="sr-only">
-        Document statistics
-      </h3>
-      <dl className="flex gap-px overflow-x-auto bg-hairline sm:grid sm:grid-cols-5">
-        {metrics.map((metric) => (
-          <div
-            key={metric.key}
-            className="flex min-w-28 shrink-0 flex-col gap-1 bg-surface px-3 py-2 sm:min-w-0 sm:last:col-span-1"
-          >
-            <dt className="text-caption text-ink-subtle">{metric.label}</dt>
-            <dd
-              data-stat={metric.key}
-              className="truncate font-mono text-label font-medium tabular-nums text-ink"
-            >
-              {metric.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+      {parts.map((part, index) => (
+        <span key={part.key} className="inline-flex items-center gap-2">
+          {index > 0 && (
+            <span aria-hidden className="text-json-punctuation">
+              ·
+            </span>
+          )}
+          <span className="sr-only">{part.label} </span>
+          <span data-stat={part.key} className="tabular-nums">
+            {part.value}
+          </span>
+          {part.key === "nodes" && <span aria-hidden> nodes</span>}
+          {part.key === "objects" && <span aria-hidden> objects</span>}
+          {part.key === "arrays" && <span aria-hidden> arrays</span>}
+          {part.key === "maxDepth" && <span aria-hidden> depth</span>}
+        </span>
+      ))}
+    </p>
   )
 }
 
@@ -849,13 +853,25 @@ export function TreeView({
   }
 
   const copyMessage = copyFeedback(copyStatus)
+  const focused = focusedPath.length > 0
+  const branchSummary = focused ? summarizeJsonNode(focusedNode) : null
+  const viewStats =
+    branchSummary === null
+      ? stats
+      : {
+          bytes: stats.bytes,
+          nodes: branchSummary.nodes,
+          objects: branchSummary.objects,
+          arrays: branchSummary.arrays,
+          maxDepth: branchSummary.maxDepth,
+        }
 
   return (
     <div className="relative flex min-h-svh flex-col overflow-x-clip bg-canvas md:h-svh md:overflow-hidden">
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
-      <header className="glass sticky top-2 z-20 mx-2 mt-2 flex h-11 items-center gap-2 rounded-xl px-2 sm:px-3">
+      <header className="glass sticky top-2 z-20 mx-2 mt-2 flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-2 py-1 sm:h-11 sm:flex-nowrap sm:px-3 sm:py-0">
         <h1 className="shrink-0">
           <img src="/logo.svg" alt="Noder" className="h-6 w-auto" />
         </h1>
@@ -868,10 +884,42 @@ export function TreeView({
           </p>
         )}
         <span className="mx-1 hidden h-4 w-px shrink-0 bg-hairline md:block" aria-hidden />
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <Breadcrumbs path={focusedPath} onNavigate={focusPath} />
+        <div className="order-last min-w-0 basis-full overflow-hidden sm:order-none sm:flex-1">
+          <Breadcrumbs path={selectedNode.path} onNavigate={focusPath} />
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0 sm:gap-2">
+          {focused ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="size-11 sm:size-7 lg:h-7 lg:w-auto lg:px-2.5"
+              aria-label="Exit focus"
+              onClick={() => focusPath(root.path)}
+            >
+              <LogOutIcon data-icon="inline-start" aria-hidden />
+              <span className="hidden lg:inline">Exit focus</span>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="size-11 sm:size-7 lg:h-7 lg:w-auto lg:px-2.5"
+              aria-label="Focus branch"
+              disabled={!canFocusSelected}
+              title={
+                canFocusSelected
+                  ? "Isolate the selected branch"
+                  : "Select a container branch to isolate it"
+              }
+              onClick={focusSelectedNode}
+              data-focus-path
+            >
+              <FocusIcon data-icon="inline-start" aria-hidden />
+              <span className="hidden lg:inline">Focus branch</span>
+            </Button>
+          )}
           <ViewSwitch view={view} onChange={setView} />
           <Button
             type="button"
@@ -905,94 +953,7 @@ export function TreeView({
         tabIndex={-1}
         className="flex min-h-0 flex-col px-2 pt-3 pb-4 sm:px-4 md:flex-1"
       >
-        <section
-          aria-labelledby="tree-view-title"
-          className="flex flex-col gap-3 md:min-h-0 md:flex-1"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 id="tree-view-title" className="font-heading text-body font-medium text-ink">
-                {view === "tree" ? "Tree View" : "Code View"}
-              </h2>
-              <p className="mt-1 text-caption text-ink-subtle">
-                {view === "tree"
-                  ? "Expand branches to inspect the structure."
-                  : "Pretty-print of the focused branch."}
-              </p>
-              <code data-selected-path className="mt-2 block truncate font-mono text-caption text-ink-subtle">
-                {formatJsonPath(selectedNode.path)}
-              </code>
-              <p role="status" aria-live="polite" className="mt-1 min-h-4 text-caption text-ink-subtle">
-                {copyMessage !== null && (
-                  <span className="enter-fade enter-fade-quick">{copyMessage}</span>
-                )}
-              </p>
-            </div>
-            <div className="hidden flex-wrap items-center gap-3 md:flex">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-11 sm:min-h-7"
-                onClick={() => setPathDialogOpen(true)}
-                data-json-path-trigger
-              >
-                <SearchIcon data-icon="inline-start" aria-hidden />
-                Go to JSONPath
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-11 sm:min-h-7"
-                disabled={!canFocusSelected}
-                title={
-                  canFocusSelected
-                    ? "Isolate the selected branch"
-                    : "Select a container branch to isolate it"
-                }
-                onClick={focusSelectedNode}
-                data-focus-path
-              >
-                <FocusIcon data-icon="inline-start" aria-hidden />
-                Focus branch
-              </Button>
-              {focusedPath.length > 0 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="min-h-11 sm:min-h-7"
-                  onClick={() => focusPath(root.path)}
-                >
-                  Exit focus
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-11 sm:min-h-7"
-                onClick={copySelectedPath}
-                data-copy-path
-              >
-                <CopyIcon data-icon="inline-start" aria-hidden />
-                Copy path
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-11 sm:min-h-7"
-                onClick={copySelectedJson}
-                data-copy-json
-              >
-                <CopyIcon data-icon="inline-start" aria-hidden />
-                Copy JSON
-              </Button>
-            </div>
-          </div>
-          <DocumentStats stats={stats} />
+        <section aria-label="Document" className="flex flex-col gap-3 md:min-h-0 md:flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative min-w-0 flex-1 basis-80">
               <SearchIcon
@@ -1009,7 +970,7 @@ export function TreeView({
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="Search keys and values"
-                aria-describedby="json-search-hint"
+                aria-describedby={searchQuery === "" ? undefined : "json-search-hint"}
                 aria-keyshortcuts="Enter Shift+Enter"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.currentTarget.value)}
@@ -1029,48 +990,71 @@ export function TreeView({
                 </Button>
               )}
             </div>
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
-              <span
-                data-search-count
-                aria-live="polite"
-                className="min-w-20 font-mono text-caption text-ink-subtle"
-              >
-                {searchQuery === ""
-                  ? ""
-                  : searchCountLabel(searchMatches.length, selectedMatchIndex, visibleMatchCount)}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-11 sm:size-7"
-                  disabled={searchMatches.length === 0}
-                  aria-label="Previous match"
-                  title="Previous match"
-                  onClick={() => moveToSearchMatch(-1)}
-                  data-search-previous
+            {searchQuery !== "" && (
+              <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+                <span
+                  data-search-count
+                  aria-live="polite"
+                  className="min-w-20 font-mono text-caption text-ink-subtle"
                 >
-                  <ChevronUpIcon aria-hidden />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-11 sm:size-7"
-                  disabled={searchMatches.length === 0}
-                  aria-label="Next match"
-                  title="Next match"
-                  onClick={() => moveToSearchMatch(1)}
-                  data-search-next
-                >
-                  <ChevronDownIcon aria-hidden />
-                </Button>
+                  {searchCountLabel(searchMatches.length, selectedMatchIndex, visibleMatchCount)}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-11 sm:size-7"
+                    disabled={searchMatches.length === 0}
+                    aria-label="Previous match"
+                    title="Previous match"
+                    onClick={() => moveToSearchMatch(-1)}
+                    data-search-previous
+                  >
+                    <ChevronUpIcon aria-hidden />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-11 sm:size-7"
+                    disabled={searchMatches.length === 0}
+                    aria-label="Next match"
+                    title="Next match"
+                    onClick={() => moveToSearchMatch(1)}
+                    data-search-next
+                  >
+                    <ChevronDownIcon aria-hidden />
+                  </Button>
+                </div>
+                <span id="json-search-hint" className="hidden text-caption text-ink-subtle sm:inline">
+                  Enter next · Shift+Enter previous
+                </span>
               </div>
-              <span id="json-search-hint" className="hidden text-caption text-ink-subtle sm:inline">
-                Enter next · Shift+Enter previous
-              </span>
+            )}
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                aria-label="Copy path"
+                title="Copy path"
+                onClick={copySelectedPath}
+                data-selected-path
+                data-copy-path
+                className="h-6 max-w-full min-w-0 truncate px-1 font-mono text-caption text-ink-subtle hover:text-ink"
+              >
+                {formatJsonPath(selectedNode.path)}
+              </Button>
+              <p role="status" aria-live="polite" className="min-h-4 text-caption text-ink-subtle">
+                {copyMessage !== null && (
+                  <span className="enter-fade enter-fade-quick">{copyMessage}</span>
+                )}
+              </p>
             </div>
+            <DocumentStats stats={viewStats} showBytes={!focused} />
           </div>
           <div className="flex flex-col gap-3 md:min-h-0 md:flex-1 md:flex-row">
             {view === "code" ? (

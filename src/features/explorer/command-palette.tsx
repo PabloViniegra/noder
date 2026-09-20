@@ -38,14 +38,19 @@ type PaletteItemProps = {
   readonly icon: LucideIcon
   readonly label: string
   readonly value: string
+  readonly hint?: string
   readonly disabled?: boolean
   readonly onSelect: () => void
 }
+
+const GROUP_CLASS =
+  "p-1 text-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-caption [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-subtle"
 
 function PaletteItem({
   icon: Icon,
   label,
   value,
+  hint,
   disabled,
   onSelect,
 }: PaletteItemProps) {
@@ -62,7 +67,10 @@ function PaletteItem({
       )}
     >
       <Icon aria-hidden className="text-ink-subtle" />
-      <span>{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {hint !== undefined && (
+        <span className="hidden font-mono text-caption text-ink-subtle sm:inline">{hint}</span>
+      )}
     </CommandPrimitive.Item>
   )
 }
@@ -120,7 +128,7 @@ export function CommandPalette({
         >
           <Dialog.Title className="sr-only">Command palette</Dialog.Title>
           <Dialog.Description className="sr-only">
-            Search for a command or action.
+            Search keys in the document or run an action.
           </Dialog.Description>
           <CommandPrimitive label="Search commands" className="flex min-h-0 flex-col">
             <div className="flex h-10 shrink-0 items-center gap-3 border-b border-hairline px-3">
@@ -129,7 +137,7 @@ export function CommandPalette({
                 ref={inputRef}
                 value={query}
                 onValueChange={setQuery}
-                placeholder="Search for a command or action…"
+                placeholder="Search keys or commands…"
                 className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-subtle sm:text-body"
               />
               <Kbd>Esc</Kbd>
@@ -139,10 +147,7 @@ export function CommandPalette({
                 No matching commands.
               </CommandPrimitive.Empty>
               {query.trim() !== "" && (
-                <CommandPrimitive.Group
-                  heading="Search"
-                  className="p-1 text-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-caption [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-subtle"
-                >
+                <CommandPrimitive.Group heading="Search" className={GROUP_CLASS}>
                   <PaletteItem
                     icon={SearchIcon}
                     label={`Search “${query.trim()}”`}
@@ -151,16 +156,7 @@ export function CommandPalette({
                   />
                 </CommandPrimitive.Group>
               )}
-              <CommandPrimitive.Group
-                heading="Actions"
-                className="p-1 text-ink [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-caption [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-ink-subtle"
-              >
-                <PaletteItem
-                  icon={SearchIcon}
-                  label="Go to JSONPath"
-                  value="go to jsonpath path locate"
-                  onSelect={() => runAction(onGoToPath)}
-                />
+              <CommandPrimitive.Group heading="Navigate" className={GROUP_CLASS}>
                 <PaletteItem
                   icon={SearchIcon}
                   label="Search document"
@@ -168,9 +164,16 @@ export function CommandPalette({
                   onSelect={searchDocument}
                 />
                 <PaletteItem
+                  icon={SearchIcon}
+                  label="Go to JSONPath"
+                  value="go to jsonpath path locate"
+                  onSelect={() => runAction(onGoToPath)}
+                />
+                <PaletteItem
                   icon={FocusIcon}
                   label="Focus branch"
                   value="focus branch selected"
+                  hint={canFocus ? undefined : "Select a container"}
                   disabled={!canFocus}
                   onSelect={() => runAction(onFocusSelected)}
                 />
@@ -182,6 +185,23 @@ export function CommandPalette({
                     onSelect={() => runAction(onExitFocus)}
                   />
                 )}
+                {view === "tree" ? (
+                  <PaletteItem
+                    icon={BracesIcon}
+                    label="Show code view"
+                    value="show code view pretty print"
+                    onSelect={() => runAction(onShowCodeView)}
+                  />
+                ) : (
+                  <PaletteItem
+                    icon={ListTreeIcon}
+                    label="Show tree view"
+                    value="show tree view"
+                    onSelect={() => runAction(onShowTreeView)}
+                  />
+                )}
+              </CommandPrimitive.Group>
+              <CommandPrimitive.Group heading="Copy" className={GROUP_CLASS}>
                 <PaletteItem
                   icon={ClipboardIcon}
                   label="Copy selected path"
@@ -200,21 +220,8 @@ export function CommandPalette({
                   value="copy document json complete file"
                   onSelect={() => runAction(onCopyDocument)}
                 />
-                {view === "tree" ? (
-                  <PaletteItem
-                    icon={BracesIcon}
-                    label="Show code view"
-                    value="show code view pretty print"
-                    onSelect={() => runAction(onShowCodeView)}
-                  />
-                ) : (
-                  <PaletteItem
-                    icon={ListTreeIcon}
-                    label="Show tree view"
-                    value="show tree view"
-                    onSelect={() => runAction(onShowTreeView)}
-                  />
-                )}
+              </CommandPrimitive.Group>
+              <CommandPrimitive.Group heading="Document" className={GROUP_CLASS}>
                 <PaletteItem
                   icon={XIcon}
                   label="Close document"

@@ -6,6 +6,13 @@ import type {
   JsonPathSegment,
 } from "./types"
 
+export type JsonNodeSummary = {
+  readonly nodes: number
+  readonly objects: number
+  readonly arrays: number
+  readonly maxDepth: number
+}
+
 type ContainerNode = JsonObjectNode | JsonArrayNode
 // Weak keys prevent released documents from being retained by the traversal cache.
 const childIndexCache = new WeakMap<ContainerNode, ReadonlyMap<JsonPathSegment, number>>()
@@ -86,4 +93,38 @@ function getChildIndex(parent: ContainerNode): ReadonlyMap<JsonPathSegment, numb
   })
   childIndexCache.set(parent, index)
   return index
+}
+
+export function summarizeJsonNode(node: JsonNode): JsonNodeSummary {
+  let nodes = 0
+  let objects = 0
+  let arrays = 0
+  let maxDepth = 0
+  const pending: JsonNode[] = [node]
+
+  while (pending.length > 0) {
+    const current = pending.pop()
+    if (current === undefined) {
+      continue
+    }
+
+    nodes += 1
+    maxDepth = Math.max(maxDepth, current.depth - node.depth)
+    if (!isJsonContainerNode(current)) {
+      continue
+    }
+    if (current.kind === "object") {
+      objects += 1
+    } else {
+      arrays += 1
+    }
+    for (let index = current.children.length - 1; index >= 0; index -= 1) {
+      const child = current.children[index]
+      if (child !== undefined) {
+        pending.push(child)
+      }
+    }
+  }
+
+  return { nodes, objects, arrays, maxDepth }
 }
