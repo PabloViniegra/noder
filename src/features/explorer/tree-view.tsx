@@ -1,4 +1,3 @@
-import { useVirtualizer } from "@tanstack/react-virtual"
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -10,10 +9,7 @@ import {
   XIcon,
 } from "lucide-react"
 import {
-  useEffect,
-  useMemo,
   useRef,
-  useState,
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
@@ -30,32 +26,26 @@ import type {
 } from "@/core/json/types"
 import {
   formatJsonPath,
-  isJsonPathWithin,
   jsonPathsEqual,
-  parseJsonPath,
   parentJsonPath,
   serializeJsonPath,
 } from "@/core/json/path"
 import {
-  flattenVisibleNodes,
   getJsonChildPosition,
   getJsonNodeAtPath,
   isJsonContainerNode,
-  summarizeJsonNode,
 } from "@/core/json/traverse"
-import { formatJsonCode, stringifyJsonNode } from "@/core/json/format"
-import { searchJson, type JsonSearchMatch } from "@/core/json/search"
-import { searchJsonInWorker } from "@/core/json/json-worker-client"
 import { CodeView } from "@/features/explorer/code-view"
 import { CommandPalette } from "@/features/explorer/command-palette"
 import { JsonPathDialog } from "@/features/explorer/json-path-dialog"
 import { StructuralMinimap } from "@/features/explorer/structural-minimap"
-import { useDocumentStore } from "@/features/document/store"
+import {
+  useTreeViewModel,
+  type ExplorerView,
+} from "@/features/explorer/use-tree-view-model"
 import { cn } from "@/lib/utils"
 
 type ContainerNode = JsonObjectNode | JsonArrayNode
-type CopyStatus = "idle" | "copied-path" | "copied-json" | "copied-document" | "error"
-type ExplorerView = "tree" | "code"
 type TreeItemPosition = {
   readonly positionInSet: number
   readonly setSize: number
@@ -85,6 +75,10 @@ type TreeRowProps = {
   readonly rowRef: (element: HTMLDivElement | null) => void
   readonly index: number
   readonly style: CSSProperties
+}
+
+type TreeRowItemProps = Omit<TreeRowProps, "index" | "style"> & {
+  readonly expandable: boolean
 }
 
 type BreadcrumbsProps = {
@@ -220,21 +214,6 @@ function searchCountLabel(count: number, currentIndex: number, visibleCount: num
   return visibleCount === 0 ? `${countLabel} — in collapsed branches` : countLabel
 }
 
-function copyFeedback(status: CopyStatus): string | null {
-  switch (status) {
-    case "idle":
-      return null
-    case "copied-path":
-      return "Path copied."
-    case "copied-json":
-      return "JSON copied."
-    case "copied-document":
-      return "Document copied."
-    case "error":
-      return "Could not copy."
-  }
-}
-
 function formatBytes(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} B`
@@ -291,6 +270,34 @@ function DocumentStats({ stats, showBytes }: DocumentStatsProps) {
   )
 }
 
+function treeRowClassName(selected: boolean, matched: boolean, currentMatch: boolean): string {
+  return cn(
+    "group flex min-h-7 w-full min-w-0 items-center overflow-hidden rounded-sm px-1 outline-none transition-colors",
+    selected
+      ? "bg-selection text-ink shadow-[inset_2px_0_0_var(--primary-hover)] hover:bg-selection"
+      : matched
+        ? "bg-primary/10 hover:bg-primary/15"
+        : "hover:bg-surface-raised focus-visible:bg-selection",
+    currentMatch && "ring-1 ring-primary/60",
+    "focus-visible:ring-2 focus-visible:ring-ring/40",
+  )
+}
+
+function handleTreeRowClick(
+  event: MouseEvent<HTMLDivElement>,
+  expandable: boolean,
+  onToggle: () => void,
+  onSelect: () => void,
+) {
+  const disclosure =
+    event.target instanceof Element ? event.target.closest("[data-tree-disclosure]") : null
+  if (expandable && disclosure !== null) {
+    onToggle()
+    return
+  }
+  onSelect()
+}
+
 function TreeRow({
   node,
   expanded,
@@ -308,98 +315,133 @@ function TreeRow({
   index,
   style,
 }: TreeRowProps) {
-  const container = isJsonContainerNode(node)
-  const expandable = container && node.children.length > 0
-  const label = nodeName(node)
+  const expandable = isJsonContainerNode(node) && node.children.length > 0
 
   return (
     <li data-index={index} role="none" style={style}>
-      <div
-        ref={rowRef}
-        role="treeitem"
-        aria-level={level}
-        aria-posinset={positionInSet}
-        aria-setsize={setSize}
-        aria-selected={selected}
-        aria-current={currentMatch ? "true" : undefined}
-        aria-expanded={expandable ? expanded : undefined}
-        data-search-match={matched ? "true" : undefined}
-        data-search-current={currentMatch ? "true" : undefined}
-        tabIndex={selected ? 0 : -1}
-        onClick={(event: MouseEvent<HTMLDivElement>) => {
-          const disclosure =
-            event.target instanceof Element
-              ? event.target.closest("[data-tree-disclosure]")
-              : null
-          if (expandable && disclosure !== null) {
-            onToggle()
-            return
-          }
-          onSelect()
-        }}
-        onFocus={onSelect}
+      <TreeRowItem
+        node={node}
+        expanded={expanded}
+        selected={selected}
+        matched={matched}
+        currentMatch={currentMatch}
+        hiddenMatchCount={hiddenMatchCount}
+        level={level}
+        positionInSet={positionInSet}
+        setSize={setSize}
+        onToggle={onToggle}
+        onSelect={onSelect}
         onKeyDown={onKeyDown}
-        className={cn(
-          "group flex min-h-7 w-full min-w-0 items-center overflow-hidden rounded-sm px-1 outline-none transition-colors",
-          selected
-            ? "bg-selection text-ink shadow-[inset_2px_0_0_var(--primary-hover)] hover:bg-selection"
-            : matched
-              ? "bg-primary/10 hover:bg-primary/15"
-              : "hover:bg-surface-raised focus-visible:bg-selection",
-          currentMatch && "ring-1 ring-primary/60",
-          "focus-visible:ring-2 focus-visible:ring-ring/40",
-        )}
-        style={{ paddingInlineStart: `${node.depth * 16 + 4}px` }}
-        >
-        <span
-          aria-hidden
-          className={cn(
-            "mr-1 size-1.5 shrink-0 rounded-full",
-            matched ? (currentMatch ? "bg-primary-hover" : "bg-primary/70") : "bg-transparent",
-          )}
-        />
-        {expandable ? (
-          <span
-            aria-hidden
-            data-tree-disclosure
-            className="mr-1 flex size-6 shrink-0 items-center justify-center text-ink-subtle transition-colors group-hover:text-ink"
-          >
-            {expanded ? <ChevronDownIcon aria-hidden /> : <ChevronRightIcon aria-hidden />}
-          </span>
-        ) : (
-          <span aria-hidden className="mr-1 inline-block size-6 shrink-0" />
-        )}
-        <span className="min-w-0 max-w-[45%] truncate text-json-key" title={label}>
-          {label}
-        </span>
-        {node.key !== null && <span className="text-json-punctuation">:</span>}
-        {container ? (
-          <>
-            <span className={cn("ml-2 min-w-0 truncate", kindClass(node.kind))}>
-              {containerSummary(node)}
-            </span>
-            {!expanded && hiddenMatchCount > 0 && (
-              <span
-                data-hidden-matches={hiddenMatchCount}
-                title={`${hiddenMatchCount} hidden ${
-                  hiddenMatchCount === 1 ? "match" : "matches"
-                } in this branch`}
-                className="ml-2 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 font-mono text-caption tabular-nums text-primary-hover"
-              >
-                {hiddenMatchCount}
-              </span>
-            )}
-          </>
-        ) : (
-          <span
-            className={cn("ml-2 min-w-0 flex-1 truncate", kindClass(node.kind))}
-            title={scalarValue(node)}
-          >
-            {scalarValue(node)}
-          </span>
-        )}
-      </div>
+        rowRef={rowRef}
+        expandable={expandable}
+      />
     </li>
+  )
+}
+
+function TreeRowItem({
+  node,
+  expanded,
+  selected,
+  matched,
+  currentMatch,
+  hiddenMatchCount,
+  level,
+  positionInSet,
+  setSize,
+  onToggle,
+  onSelect,
+  onKeyDown,
+  rowRef,
+  expandable,
+}: TreeRowItemProps) {
+  const label = nodeName(node)
+
+  return (
+    <div
+      ref={rowRef}
+      role="treeitem"
+      aria-level={level}
+      aria-posinset={positionInSet}
+      aria-setsize={setSize}
+      aria-selected={selected}
+      aria-current={currentMatch ? "true" : undefined}
+      aria-expanded={expandable ? expanded : undefined}
+      data-search-match={matched ? "true" : undefined}
+      data-search-current={currentMatch ? "true" : undefined}
+      tabIndex={selected ? 0 : -1}
+      onClick={(event) => handleTreeRowClick(event, expandable, onToggle, onSelect)}
+      onFocus={onSelect}
+      onKeyDown={onKeyDown}
+      className={treeRowClassName(selected, matched, currentMatch)}
+      style={{ paddingInlineStart: `${node.depth * 16 + 4}px` }}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "mr-1 size-1.5 shrink-0 rounded-full",
+          matched ? (currentMatch ? "bg-primary-hover" : "bg-primary/70") : "bg-transparent",
+        )}
+      />
+      <TreeRowDisclosure expandable={expandable} expanded={expanded} />
+      <span className="min-w-0 max-w-[45%] truncate text-json-key" title={label}>
+        {label}
+      </span>
+      {node.key !== null && <span className="text-json-punctuation">:</span>}
+      <TreeRowValue node={node} expanded={expanded} hiddenMatchCount={hiddenMatchCount} />
+    </div>
+  )
+}
+
+function TreeRowDisclosure({ expandable, expanded }: { expandable: boolean; expanded: boolean }) {
+  if (!expandable) {
+    return <span aria-hidden className="mr-1 inline-block size-6 shrink-0" />
+  }
+
+  return (
+    <span
+      aria-hidden
+      data-tree-disclosure
+      className="mr-1 flex size-6 shrink-0 items-center justify-center text-ink-subtle transition-colors group-hover:text-ink"
+    >
+      {expanded ? <ChevronDownIcon aria-hidden /> : <ChevronRightIcon aria-hidden />}
+    </span>
+  )
+}
+
+function TreeRowValue({
+  node,
+  expanded,
+  hiddenMatchCount,
+}: {
+  readonly node: JsonNode
+  readonly expanded: boolean
+  readonly hiddenMatchCount: number
+}) {
+  if (!isJsonContainerNode(node)) {
+    const value = scalarValue(node)
+    return (
+      <span className={cn("ml-2 min-w-0 flex-1 truncate", kindClass(node.kind))} title={value}>
+        {value}
+      </span>
+    )
+  }
+
+  return (
+    <>
+      <span className={cn("ml-2 min-w-0 truncate", kindClass(node.kind))}>
+        {containerSummary(node)}
+      </span>
+      {!expanded && hiddenMatchCount > 0 && (
+        <span
+          data-hidden-matches={hiddenMatchCount}
+          title={`${hiddenMatchCount} hidden ${hiddenMatchCount === 1 ? "match" : "matches"} in this branch`}
+          className="ml-2 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 px-1 font-mono text-caption tabular-nums text-primary-hover"
+        >
+          {hiddenMatchCount}
+        </span>
+      )}
+    </>
   )
 }
 
@@ -478,399 +520,40 @@ function ViewSwitch({
   )
 }
 
-export function TreeView({
-  root,
-  stats,
-  searchWorkerReady,
-  initialCommandOpen,
-  onCloseDocument,
-}: TreeViewProps) {
-  const sourceName = useDocumentStore((s) => s.sourceName)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
-  const rowRefs = useRef(new Map<string, HTMLDivElement>())
-  const [focusedPath, setFocusedPath] = useState<JsonPath>(() => root.path)
-  const [expandedNodes, setExpandedNodes] = useState<ReadonlySet<JsonNode>>(() => new Set([root]))
-  const [selectedPath, setSelectedPath] = useState<JsonPath>(() => root.path)
-  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [paletteOpen, setPaletteOpen] = useState(initialCommandOpen)
-  const [pathDialogOpen, setPathDialogOpen] = useState(false)
-  const [view, setView] = useState<ExplorerView>("tree")
-  const focusedNode = getJsonNodeAtPath(root, focusedPath) ?? root
-  const visibleNodes = useMemo(
-    () => flattenVisibleNodes(focusedNode, expandedNodes),
-    [expandedNodes, focusedNode],
-  )
-  const visibleIndexByNode = useMemo(() => {
-    const index = new Map<JsonNode, number>()
-    visibleNodes.forEach((node, nodeIndex) => {
-      index.set(node, nodeIndex)
-    })
-    return index
-  }, [visibleNodes])
-  const [searchMatches, setSearchMatches] = useState<readonly JsonSearchMatch[]>([])
-  const useSearchWorker = searchWorkerReady && stats.nodes >= 20_000
-  const searchMatchNodes = useMemo(
-    () => new Set(searchMatches.map((match) => match.node)),
-    [searchMatches],
-  )
-  const searchMatchPaths = useMemo(
-    () => new Set(searchMatches.map((match) => serializeJsonPath(match.node.path))),
-    [searchMatches],
-  )
-  const visibleMatchCount = useMemo(
-    () => searchMatches.filter((match) => visibleIndexByNode.has(match.node)).length,
-    [searchMatches, visibleIndexByNode],
-  )
-  const hiddenMatchCountByPath = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const match of searchMatches) {
-      let ancestorPath = parentJsonPath(match.node.path)
-      while (ancestorPath !== null && isJsonPathWithin(ancestorPath, focusedNode.path)) {
-        const ancestor = getJsonNodeAtPath(root, ancestorPath)
-        if (ancestor !== null && isJsonContainerNode(ancestor) && !expandedNodes.has(ancestor)) {
-          const key = serializeJsonPath(ancestor.path)
-          counts.set(key, (counts.get(key) ?? 0) + 1)
-        }
-        ancestorPath = parentJsonPath(ancestorPath)
-      }
-    }
-    return counts
-  }, [searchMatches, expandedNodes, focusedNode.path, root])
-  const codeLines = useMemo(
-    () => (view === "code" ? formatJsonCode(focusedNode) : []),
-    [focusedNode, view],
-  )
-  const selectedMatchIndex = searchMatches.findIndex((match) =>
-    jsonPathsEqual(match.node.path, selectedPath),
-  )
-  const selectedNode = getJsonNodeAtPath(root, selectedPath) ?? focusedNode
-  const selectedIndex = visibleIndexByNode.get(selectedNode) ?? -1
-  const focusedPathKey = serializeJsonPath(focusedPath)
-  const selectedPathKey = serializeJsonPath(selectedPath)
-  const canFocusSelected =
-    isJsonContainerNode(selectedNode) && selectedPathKey !== focusedPathKey
-  const rowVirtualizer = useVirtualizer({
-    count: visibleNodes.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 28,
-    getItemKey: (index) => {
-      const node = visibleNodes[index]
-      return node === undefined ? index : serializeJsonPath(node.path)
-    },
-    overscan: 8,
-    paddingStart: 8,
-    paddingEnd: 8,
-  })
+type TreeViewLayoutProps = ReturnType<typeof useTreeViewModel> &
+  Pick<TreeViewProps, "onCloseDocument">
 
-  useEffect(() => {
-    let active = true
-    if (searchQuery === "") {
-      setSearchMatches([])
-      return () => {
-        active = false
-      }
-    }
+export function TreeView(props: TreeViewProps) {
+  const model = useTreeViewModel(props)
+  return <TreeViewLayout {...model} onCloseDocument={props.onCloseDocument} />
+}
 
-    if (!useSearchWorker) {
-      setSearchMatches(searchJson(focusedNode, searchQuery))
-      return () => {
-        active = false
-      }
-    }
-
-    void searchJsonInWorker(searchQuery, focusedNode.path).then(
-      (matches) => {
-        if (!active) {
-          return
-        }
-        setSearchMatches(
-          matches.flatMap((match) => {
-            const node = getJsonNodeAtPath(root, match.path)
-            return node === null ? [] : [{ node, matchedBy: match.matchedBy }]
-          }),
-        )
-      },
-      () => {
-        if (active) {
-          setSearchMatches(searchJson(focusedNode, searchQuery))
-        }
-      },
-    )
-
-    return () => {
-      active = false
-    }
-  }, [focusedNode, root, searchQuery, useSearchWorker])
-
-  useEffect(() => {
-    if (
-      view !== "tree" ||
-      selectedIndex === -1 ||
-      document.activeElement?.getAttribute("role") === "tab"
-    ) {
-      return
-    }
-
-    rowVirtualizer.scrollToIndex(selectedIndex, { align: "auto" })
-    const focusFrame = window.requestAnimationFrame(() => {
-      rowRefs.current.get(selectedPathKey)?.focus()
-    })
-    return () => window.cancelAnimationFrame(focusFrame)
-  }, [rowVirtualizer, selectedIndex, selectedPathKey, view])
-
-  useEffect(() => {
-    function handleGlobalKeyDown(event: globalThis.KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault()
-        if (pathDialogOpen) {
-          return
-        }
-        setPaletteOpen(true)
-      }
-    }
-
-    window.addEventListener("keydown", handleGlobalKeyDown)
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown)
-  }, [pathDialogOpen])
-
-  function setRowRef(path: string, element: HTMLDivElement | null) {
-    if (element === null) {
-      rowRefs.current.delete(path)
-    } else {
-      rowRefs.current.set(path, element)
-    }
-  }
-
-  function selectPath(path: JsonPath) {
-    setSelectedPath(path)
-    setCopyStatus("idle")
-  }
-
-  function focusPath(path: JsonPath) {
-    const node = getJsonNodeAtPath(root, path) ?? root
-    setFocusedPath(node.path)
-    setExpandedNodes(new Set([node]))
-    setSelectedPath(node.path)
-    setCopyStatus("idle")
-  }
-
-  function focusSelectedNode() {
-    if (!canFocusSelected) {
-      return
-    }
-    focusPath(selectedNode.path)
-  }
-
-  function revealPath(path: JsonPath) {
-    const nextExpandedNodes = new Set(expandedNodes)
-    for (let length = focusedPath.length; length <= path.length; length += 1) {
-      const ancestor = getJsonNodeAtPath(root, path.slice(0, length))
-      if (ancestor !== null) {
-        nextExpandedNodes.add(ancestor)
-      }
-    }
-    setExpandedNodes(nextExpandedNodes)
-    selectPath(path)
-  }
-
-  function navigateToPath(input: string): string | null {
-    const result = parseJsonPath(input)
-    if (!result.ok) {
-      return result.message
-    }
-
-    const targetNode = getJsonNodeAtPath(root, result.path)
-    if (targetNode === null) {
-      return `No node found at ${formatJsonPath(result.path)}.`
-    }
-
-    const nextFocusedPath = isJsonPathWithin(result.path, focusedPath) ? focusedPath : root.path
-    const nextFocusedNode = getJsonNodeAtPath(root, nextFocusedPath) ?? root
-    const nextExpandedNodes = jsonPathsEqual(nextFocusedPath, focusedPath)
-      ? new Set(expandedNodes)
-      : new Set([nextFocusedNode])
-
-    for (let length = nextFocusedPath.length; length <= result.path.length; length += 1) {
-      const ancestor = getJsonNodeAtPath(root, result.path.slice(0, length))
-      if (ancestor !== null) {
-        nextExpandedNodes.add(ancestor)
-      }
-    }
-    setFocusedPath(nextFocusedPath)
-    setExpandedNodes(nextExpandedNodes)
-    selectPath(result.path)
-    return null
-  }
-
-  function moveToSearchMatch(direction: number) {
-    if (searchMatches.length === 0) {
-      return
-    }
-
-    const currentIndex = searchMatches.findIndex((match) =>
-      jsonPathsEqual(match.node.path, selectedPath),
-    )
-    const nextIndex =
-      currentIndex === -1
-        ? direction > 0
-          ? 0
-          : searchMatches.length - 1
-        : (currentIndex + direction + searchMatches.length) % searchMatches.length
-    const match = searchMatches[nextIndex]
-    if (match !== undefined) {
-      revealPath(match.node.path)
-    }
-  }
-
-  function togglePath(node: JsonNode) {
-    if (expandedNodes.has(node) && isJsonPathWithin(selectedPath, node.path)) {
-      selectPath(node.path)
-    }
-
-    setExpandedNodes((current) => {
-      const next = new Set(current)
-      if (next.has(node)) {
-        next.delete(node)
-      } else {
-        next.add(node)
-      }
-      return next
-    })
-  }
-
-  function moveSelection(index: number) {
-    const currentIndex = selectedIndex === -1 ? 0 : selectedIndex
-    const nextIndex = Math.min(Math.max(currentIndex + index, 0), visibleNodes.length - 1)
-    const nextNode = visibleNodes[nextIndex]
-    if (nextNode !== undefined) {
-      selectPath(nextNode.path)
-    }
-  }
-
-  function handleNodeKeyDown(event: KeyboardEvent<HTMLDivElement>, node: JsonNode) {
-    const container = isJsonContainerNode(node)
-    const expandable = container && node.children.length > 0
-
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault()
-        moveSelection(1)
-        return
-      case "ArrowUp":
-        event.preventDefault()
-        moveSelection(-1)
-        return
-      case "Home":
-        event.preventDefault()
-        moveSelection(-visibleNodes.length)
-        return
-      case "End":
-        event.preventDefault()
-        moveSelection(visibleNodes.length)
-        return
-      case "ArrowRight":
-        if (!expandable) {
-          return
-        }
-        event.preventDefault()
-        if (!expandedNodes.has(node)) {
-          togglePath(node)
-          return
-        }
-        if (node.children[0] !== undefined) {
-          selectPath(node.children[0].path)
-        }
-        return
-      case "ArrowLeft":
-        if (container && expandedNodes.has(node)) {
-          event.preventDefault()
-          togglePath(node)
-          return
-        }
-        if (jsonPathsEqual(node.path, focusedPath) && focusedPath.length > 0) {
-          event.preventDefault()
-          focusPath(root.path)
-          return
-        }
-        {
-          const parent = parentJsonPath(node.path)
-          if (parent !== null) {
-            event.preventDefault()
-            selectPath(parent)
-          }
-        }
-        return
-      case "Enter":
-      case " ":
-        if (expandable) {
-          event.preventDefault()
-          togglePath(node)
-        }
-    }
-  }
-
-  function copyText(text: string, copied: Exclude<CopyStatus, "idle" | "error">) {
-    if (navigator.clipboard?.writeText === undefined) {
-      setCopyStatus("error")
-      return
-    }
-
-    void navigator.clipboard.writeText(text).then(
-      () => setCopyStatus(copied),
-      () => setCopyStatus("error"),
-    )
-  }
-
-  function copySelectedPath() {
-    copyText(formatJsonPath(selectedNode.path), "copied-path")
-  }
-
-  function copySelectedJson() {
-    copyText(stringifyJsonNode(selectedNode), "copied-json")
-  }
-
-  function copyDocument() {
-    copyText(stringifyJsonNode(root), "copied-document")
-  }
-
-  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault()
-      moveToSearchMatch(event.shiftKey ? -1 : 1)
-      return
-    }
-    if (event.key === "Escape" && searchQuery !== "") {
-      event.preventDefault()
-      setSearchQuery("")
-    }
-  }
-
-  function focusDocumentSearch() {
-    setPaletteOpen(false)
-    searchRef.current?.focus()
-  }
-
-  const copyMessage = copyFeedback(copyStatus)
-  const focused = focusedPath.length > 0
-  const branchSummary = focused ? summarizeJsonNode(focusedNode) : null
-  const viewStats =
-    branchSummary === null
-      ? stats
-      : {
-          bytes: stats.bytes,
-          nodes: branchSummary.nodes,
-          objects: branchSummary.objects,
-          arrays: branchSummary.arrays,
-          maxDepth: branchSummary.maxDepth,
-        }
-
+function TreeViewLayout(props: TreeViewLayoutProps) {
   return (
     <div className="relative flex min-h-svh flex-col overflow-x-clip bg-canvas md:h-svh md:overflow-hidden">
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
+      <TreeViewHeader {...props} />
+      <TreeViewMain {...props} />
+    </div>
+  )
+}
+
+function TreeViewHeader({
+  sourceName,
+  selectedNode,
+  focused,
+  root,
+  canFocusSelected,
+  focusPath,
+  focusSelectedNode,
+  view,
+  setView,
+  setPaletteOpen,
+  onCloseDocument,
+}: TreeViewLayoutProps) {
+  return (
       <header className="glass sticky top-2 z-20 mx-2 mt-2 flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-2 py-1 sm:h-11 sm:flex-nowrap sm:px-3 sm:py-0">
         <h1 className="shrink-0">
           <img src="/logo.svg" alt="Noder" className="h-6 w-auto" />
@@ -948,6 +631,57 @@ export function TreeView({
           </Button>
         </div>
       </header>
+  )
+}
+
+function TreeViewMain({
+  scrollRef,
+  searchRef,
+  selectedNode,
+  selectedPath,
+  searchQuery,
+  setSearchQuery,
+  handleSearchKeyDown,
+  searchMatches,
+  selectedMatchIndex,
+  visibleMatchCount,
+  moveToSearchMatch,
+  copySelectedPath,
+  copySelectedJson,
+  copyDocument,
+  copyMessage,
+  viewStats,
+  focused,
+  view,
+  setView,
+  codeLines,
+  searchMatchPaths,
+  revealPath,
+  focusedNode,
+  root,
+  rowVirtualizer,
+  visibleNodes,
+  expandedNodes,
+  searchMatchNodes,
+  hiddenMatchCountByPath,
+  setRowRef,
+  togglePath,
+  handleNodeKeyDown,
+  selectedPathKey,
+  focusedPath,
+  paletteOpen,
+  setPaletteOpen,
+  pathDialogOpen,
+  setPathDialogOpen,
+  navigateToPath,
+  focusDocumentSearch,
+  focusSelectedNode,
+  canFocusSelected,
+  focusPath,
+  selectPath,
+  onCloseDocument,
+}: TreeViewLayoutProps) {
+  return (
       <main
         id="main-content"
         tabIndex={-1}
@@ -1158,6 +892,5 @@ export function TreeView({
           />
         </section>
       </main>
-    </div>
   )
 }

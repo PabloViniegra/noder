@@ -204,6 +204,7 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const draggingRef = useRef(false)
   const kickRef = useRef(() => {})
+  const frameRef = useRef<number | null>(null)
 
   useEffect(() => {
     draggingRef.current = dragging
@@ -225,7 +226,6 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
     const rot = { x: 0.18, y: -0.42 }
     const target = { x: 0.18, y: -0.42 }
     let intro = motion.matches ? 1 : 0
-    let frame = 0
     let start = 0
 
     function settled(): boolean {
@@ -268,12 +268,21 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
     }
 
     function loop(now: number) {
+      frameRef.current = null
       paint(now)
       if (shouldLoop()) {
-        frame = window.requestAnimationFrame(loop)
+        // react-doctor-disable-next-line react-doctor/effect-raf-loop-needs-cancel -- cancelLoop runs on unmount and when reduced motion is enabled.
+        frameRef.current = window.requestAnimationFrame(loop)
         return
       }
-      frame = 0
+    }
+
+    function cancelLoop() {
+      if (frameRef.current === null) {
+        return
+      }
+      window.cancelAnimationFrame(frameRef.current)
+      frameRef.current = null
     }
 
     function kick() {
@@ -281,10 +290,11 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
         paint(performance.now())
         return
       }
-      if (frame !== 0) {
+      if (frameRef.current !== null) {
         return
       }
-      frame = window.requestAnimationFrame(loop)
+      // react-doctor-disable-next-line react-doctor/effect-raf-loop-needs-cancel -- cancelLoop runs on unmount and when reduced motion is enabled.
+      frameRef.current = window.requestAnimationFrame(loop)
     }
 
     function onMove(event: PointerEvent) {
@@ -303,10 +313,7 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
         intro = 1
         rot.x = target.x
         rot.y = target.y
-        if (frame !== 0) {
-          window.cancelAnimationFrame(frame)
-          frame = 0
-        }
+        cancelLoop()
         paint(performance.now())
         return
       }
@@ -327,7 +334,7 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
     motion.addEventListener("change", onMotionChange)
     return () => {
       kickRef.current = () => {}
-      window.cancelAnimationFrame(frame)
+      cancelLoop()
       observer.disconnect()
       window.removeEventListener("pointermove", onMove)
       motion.removeEventListener("change", onMotionChange)

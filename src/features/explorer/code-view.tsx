@@ -43,7 +43,8 @@ export function CodeView({ lines, selectedPath, matchedPaths, onSelectPath }: Co
   })
   const selectedPathKey = serializeJsonPath(selectedPath)
   const activeLine = lines[activeIndex]
-  const rowVirtualizer = useVirtualizer({
+  // react-doctor-disable-next-line react-hooks-js/incompatible-library -- TanStack Virtual exposes intentionally unstable APIs.
+  const rowVirtualizer = useVirtualizer({ // oxlint-disable-line react/incompatible-library
     count: lines.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 28,
@@ -128,6 +129,10 @@ export function CodeView({ lines, selectedPath, matchedPaths, onSelectPath }: Co
     }
   }
 
+  function handleListKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    handleLineKeyDown(event, activeIndex)
+  }
+
   return (
     <div
       ref={scrollRef}
@@ -142,9 +147,11 @@ export function CodeView({ lines, selectedPath, matchedPaths, onSelectPath }: Co
         aria-activedescendant={
           lines[activeIndex] === undefined ? undefined : `json-code-line-${activeIndex}`
         }
+        tabIndex={0}
         data-code-view
         className="relative"
         style={{ height: rowVirtualizer.getTotalSize() }}
+        onKeyDown={handleListKeyDown}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
           const line = lines[virtualRow.index]
