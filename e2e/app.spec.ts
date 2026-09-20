@@ -255,6 +255,42 @@ test("navigates tree rows and copies the selected JSONPath", async ({ page, cont
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("$.users[0]")
 })
 
+test("copies the selected node and the full document as JSON", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://127.0.0.1:5173",
+  })
+  await page.goto("/")
+  const payload = '{"users":[{"profile":{"name":"Ada"}}],"meta":{"ok":true}}'
+  const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })
+  await input.fill(payload)
+  await input.press("Enter")
+
+  const usersRow = page.getByRole("treeitem").filter({ hasText: "users" })
+  await usersRow.click()
+  await usersRow.press("ArrowRight")
+  await usersRow.press("ArrowDown")
+
+  await page.getByRole("button", { name: "Copy JSON" }).click()
+  await expect(page.getByRole("status")).toHaveText("JSON copied.")
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+    JSON.stringify({ profile: { name: "Ada" } }, null, 2),
+  )
+
+  await page.getByRole("treeitem").filter({ hasText: "users" }).click()
+  await page.getByRole("button", { name: "Focus branch" }).click()
+  await expect(page.getByRole("button", { name: "Exit focus" })).toBeVisible()
+
+  await page.keyboard.press("Control+k")
+  const palette = page.getByRole("dialog")
+  await palette.getByRole("combobox", { name: "Search commands" }).fill("copy document")
+  await palette.getByRole("option", { name: "Copy document", exact: true }).click()
+
+  await expect(page.getByRole("status")).toHaveText("Document copied.")
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+    JSON.stringify(JSON.parse(payload), null, 2),
+  )
+})
+
 test("focuses a branch and returns through breadcrumbs", async ({ page }) => {
   await page.goto("/")
   const input = page.getByRole("textbox", { name: "Private JSON viewer and explorer" })

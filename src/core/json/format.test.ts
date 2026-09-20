@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatJsonCode, type JsonCodeLine } from "./format"
+import { formatJsonCode, stringifyJsonNode, type JsonCodeLine } from "./format"
 import { parseJson } from "./parse"
 import { getJsonNodeAtPath } from "./traverse"
 
@@ -47,6 +47,42 @@ describe("formatJsonCode", () => {
     const root = parsedRoot(text)
 
     expect(lineText(formatJsonCode(root))).toBe(JSON.stringify(JSON.parse(text), null, 2))
+  })
+})
+
+describe("stringifyJsonNode", () => {
+  it("pretty-prints the full document like JSON.stringify", () => {
+    const text = '{"user":{"id":1,"name":"Ada"},"tags":["json",null],"ok":true}'
+    const root = parsedRoot(text)
+
+    expect(stringifyJsonNode(root)).toBe(JSON.stringify(JSON.parse(text), null, 2))
+  })
+
+  it("pretty-prints a nested node without wrapping it in its key", () => {
+    const root = parsedRoot('{"users":[{"id":1}],"meta":true}')
+    const users = getJsonNodeAtPath(root, ["users"])
+
+    expect(users).not.toBeNull()
+    if (users === null) {
+      throw new Error("expected users node")
+    }
+
+    expect(stringifyJsonNode(users)).toBe(JSON.stringify([{ id: 1 }], null, 2))
+  })
+
+  it("stringifies scalar nodes as JSON values", () => {
+    const root = parsedRoot('{"name":"Ada","ok":true}')
+    const name = getJsonNodeAtPath(root, ["name"])
+    const ok = getJsonNodeAtPath(root, ["ok"])
+
+    expect(name).not.toBeNull()
+    expect(ok).not.toBeNull()
+    if (name === null || ok === null) {
+      throw new Error("expected scalar nodes")
+    }
+
+    expect(stringifyJsonNode(name)).toBe('"Ada"')
+    expect(stringifyJsonNode(ok)).toBe("true")
   })
 })
 

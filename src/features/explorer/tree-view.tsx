@@ -42,7 +42,7 @@ import {
   getJsonNodeAtPath,
   isJsonContainerNode,
 } from "@/core/json/traverse"
-import { formatJsonCode } from "@/core/json/format"
+import { formatJsonCode, stringifyJsonNode } from "@/core/json/format"
 import { searchJson, type JsonSearchMatch } from "@/core/json/search"
 import { searchJsonInWorker } from "@/core/json/json-worker-client"
 import { CodeView } from "@/features/explorer/code-view"
@@ -53,7 +53,7 @@ import { useDocumentStore } from "@/features/document/store"
 import { cn } from "@/lib/utils"
 
 type ContainerNode = JsonObjectNode | JsonArrayNode
-type CopyStatus = "idle" | "copied" | "error"
+type CopyStatus = "idle" | "copied-path" | "copied-json" | "copied-document" | "error"
 type ExplorerView = "tree" | "code"
 type TreeItemPosition = {
   readonly positionInSet: number
@@ -216,6 +216,21 @@ function searchCountLabel(count: number, currentIndex: number, visibleCount: num
     return `${currentIndex + 1} of ${countLabel}`
   }
   return visibleCount === 0 ? `${countLabel} — in collapsed branches` : countLabel
+}
+
+function copyFeedback(status: CopyStatus): string | null {
+  switch (status) {
+    case "idle":
+      return null
+    case "copied-path":
+      return "Path copied."
+    case "copied-json":
+      return "JSON copied."
+    case "copied-document":
+      return "Document copied."
+    case "error":
+      return "Could not copy."
+  }
 }
 
 function formatBytes(bytes: number): string {
@@ -792,17 +807,28 @@ export function TreeView({
     }
   }
 
-  function copySelectedPath() {
-    const path = formatJsonPath(selectedNode.path)
+  function copyText(text: string, copied: Exclude<CopyStatus, "idle" | "error">) {
     if (navigator.clipboard?.writeText === undefined) {
       setCopyStatus("error")
       return
     }
 
-    void navigator.clipboard.writeText(path).then(
-      () => setCopyStatus("copied"),
+    void navigator.clipboard.writeText(text).then(
+      () => setCopyStatus(copied),
       () => setCopyStatus("error"),
     )
+  }
+
+  function copySelectedPath() {
+    copyText(formatJsonPath(selectedNode.path), "copied-path")
+  }
+
+  function copySelectedJson() {
+    copyText(stringifyJsonNode(selectedNode), "copied-json")
+  }
+
+  function copyDocument() {
+    copyText(stringifyJsonNode(root), "copied-document")
   }
 
   function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -821,6 +847,8 @@ export function TreeView({
     setPaletteOpen(false)
     searchRef.current?.focus()
   }
+
+  const copyMessage = copyFeedback(copyStatus)
 
   return (
     <div className="relative flex min-h-svh flex-col overflow-x-clip bg-canvas md:h-svh md:overflow-hidden">
@@ -895,11 +923,9 @@ export function TreeView({
                 {formatJsonPath(selectedNode.path)}
               </code>
               <p role="status" aria-live="polite" className="mt-1 min-h-4 text-caption text-ink-subtle">
-                {copyStatus === "copied"
-                  ? "Path copied."
-                  : copyStatus === "error"
-                    ? "Could not copy."
-                    : ""}
+                {copyMessage !== null && (
+                  <span className="enter-fade enter-fade-quick">{copyMessage}</span>
+                )}
               </p>
             </div>
             <div className="hidden flex-wrap items-center gap-3 md:flex">
@@ -952,6 +978,17 @@ export function TreeView({
               >
                 <CopyIcon data-icon="inline-start" aria-hidden />
                 Copy path
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11 sm:min-h-7"
+                onClick={copySelectedJson}
+                data-copy-json
+              >
+                <CopyIcon data-icon="inline-start" aria-hidden />
+                Copy JSON
               </Button>
             </div>
           </div>
@@ -1116,6 +1153,8 @@ export function TreeView({
             onFocusSelected={focusSelectedNode}
             onExitFocus={() => focusPath(root.path)}
             onCopyPath={copySelectedPath}
+            onCopyJson={copySelectedJson}
+            onCopyDocument={copyDocument}
             onCloseDocument={onCloseDocument}
             view={view}
             onShowCodeView={() => setView("code")}

@@ -3,6 +3,7 @@ import { Command as CommandPrimitive } from "cmdk"
 import {
   BracesIcon,
   ClipboardIcon,
+  CopyIcon,
   FocusIcon,
   ListTreeIcon,
   LogOutIcon,
@@ -25,6 +26,8 @@ type CommandPaletteProps = {
   readonly onFocusSelected: () => void
   readonly onExitFocus: () => void
   readonly onCopyPath: () => void
+  readonly onCopyJson: () => void
+  readonly onCopyDocument: () => void
   readonly onCloseDocument: () => void
   readonly view: "tree" | "code"
   readonly onShowCodeView: () => void
@@ -75,6 +78,8 @@ export function CommandPalette({
   onFocusSelected,
   onExitFocus,
   onCopyPath,
+  onCopyJson,
+  onCopyDocument,
   onCloseDocument,
   view,
   onShowCodeView,
@@ -108,7 +113,7 @@ export function CommandPalette({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 bg-overlay transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
+        <Dialog.Backdrop className="fixed inset-0 bg-overlay" />
         <Dialog.Popup
           className="glass fixed top-1/2 left-1/2 flex max-h-[min(80svh,32rem)] w-[min(640px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl p-2 outline-none"
           data-command-palette
@@ -182,6 +187,18 @@ export function CommandPalette({
                   label="Copy selected path"
                   value="copy selected path jsonpath"
                   onSelect={() => runAction(onCopyPath)}
+                />
+                <PaletteItem
+                  icon={CopyIcon}
+                  label="Copy selected JSON"
+                  value="copy selected json node value"
+                  onSelect={() => runAction(onCopyJson)}
+                />
+                <PaletteItem
+                  icon={CopyIcon}
+                  label="Copy document"
+                  value="copy document json complete file"
+                  onSelect={() => runAction(onCopyDocument)}
                 />
                 {view === "tree" ? (
                   <PaletteItem

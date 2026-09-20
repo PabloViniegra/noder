@@ -1,4 +1,4 @@
-import type { JsonNode, JsonPath } from "./types"
+import type { JsonNode, JsonPath, JsonValue } from "./types"
 import { isJsonContainerNode } from "./traverse"
 
 export type JsonCodeTokenKind =
@@ -36,6 +36,10 @@ type FormatTask =
       readonly indent: number
       readonly comma: boolean
     }
+
+export function stringifyJsonNode(node: JsonNode): string {
+  return JSON.stringify(toJsonValue(node), null, 2)
+}
 
 export function formatJsonCode(root: JsonNode): readonly JsonCodeLine[] {
   const lines: JsonCodeLine[] = []
@@ -135,4 +139,25 @@ function commaToken(comma: boolean): readonly JsonCodeToken[] {
 
 function isStringKey(node: JsonNode): node is JsonNode & { readonly key: string } {
   return Object.prototype.toString.call(node.key) === "[object String]"
+}
+
+function toJsonValue(node: JsonNode): JsonValue {
+  switch (node.kind) {
+    case "object": {
+      const value: { [key: string]: JsonValue } = {}
+      for (const child of node.children) {
+        if (isStringKey(child)) {
+          value[child.key] = toJsonValue(child)
+        }
+      }
+      return value
+    }
+    case "array":
+      return node.children.map(toJsonValue)
+    case "string":
+    case "number":
+    case "boolean":
+    case "null":
+      return node.value
+  }
 }
