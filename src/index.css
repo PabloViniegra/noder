@@ -256,6 +256,39 @@
   height: 100%;
 }
 
+.home-canvas {
+  background:
+    radial-gradient(ellipse 42rem 30rem at 14% 78%, rgb(94 106 210 / 10%), transparent 72%),
+    var(--canvas);
+}
+
+.home-reveal {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 600ms var(--ease-ui),
+    transform 600ms var(--ease-ui);
+}
+
+.home-reveal-panel {
+  transition-delay: 80ms;
+}
+
+@starting-style {
+  .home-reveal {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-reveal {
+    transition-duration: 150ms;
+    transition-delay: 0ms;
+    transform: none;
+  }
+}
+
 @supports (backdrop-filter: url(#noder-lens)) {
   .glass-refract {
     backdrop-filter: blur(14px) saturate(1.9) url(#noder-lens);

@@ -87,12 +87,12 @@ function EmptyStateIntro({
 }: Pick<EmptyStateContentProps, "dragging" | "shownError">) {
   return (
     <div className="flex flex-col gap-2">
-      <h1 id="noder-title" className="font-heading text-title text-balance text-ink">
+      <h2 id="noder-title" className="font-heading text-title text-balance text-ink">
         Drop JSON here
-      </h1>
+      </h2>
       <p id={EMPTY_STATE_LINE_ID} className="text-body text-pretty text-ink-muted">
         {dragging
-          ? "Drop JSON to open — it never leaves this browser."
+          ? "Drop JSON to open. It never leaves this browser."
           : "It never leaves this browser."}
       </p>
       {shownError !== null && (
@@ -107,6 +107,34 @@ function EmptyStateIntro({
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+function EmptyStateLead() {
+  return (
+    <div className="home-reveal w-full max-w-[32rem] justify-self-center lg:justify-self-start">
+      <p className="font-mono text-caption uppercase tracking-[0.18em] text-primary-hover">
+        Private JSON explorer
+      </p>
+      <h1
+        id="noder-hero-title"
+        className="mt-5 max-w-[10ch] font-heading text-[clamp(3.25rem,7vw,5.5rem)] font-semibold leading-[0.92] tracking-[-0.07em] text-balance text-ink"
+      >
+        Understand
+        <span className="block text-ink-muted">the shape.</span>
+      </h1>
+      <p className="mt-7 max-w-[28rem] text-base leading-relaxed text-ink-muted">
+        Open a file, paste a payload, and navigate it without sending data anywhere.
+      </p>
+      <ul
+        aria-label="Ways to explore JSON"
+        className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-hairline pt-4 font-mono text-caption text-ink-subtle"
+      >
+        <li>Tree view</li>
+        <li>Focus mode</li>
+        <li>JSONPath</li>
+      </ul>
     </div>
   )
 }
@@ -299,7 +327,7 @@ function EmptyStateContent({
 }: EmptyStateContentProps) {
   return (
     <div
-      className="relative min-h-svh overflow-hidden bg-canvas"
+      className="home-canvas relative min-h-svh overflow-hidden"
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -314,19 +342,25 @@ function EmptyStateContent({
       <StructuralField dragging={dragging} />
       <header
         ref={chromeRef}
-        className="glass-lens absolute inset-x-2 top-2 z-20 flex h-11 items-center rounded-xl px-3"
+        className="glass-lens absolute inset-x-4 top-4 z-20 mx-auto flex h-12 max-w-[1180px] items-center rounded-xl px-3.5 sm:inset-x-6 sm:px-4"
       >
         <GlassLayers />
         <img src="/logo.svg" alt="Noder" className="relative h-6 w-auto" />
-        <span className="relative ml-2 font-mono text-caption text-ink-subtle">
+        <span className="relative ml-auto inline-flex items-center gap-2 font-mono text-caption text-ink-subtle">
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_0_3px_rgb(39_166_68_/_12%)]"
+          />
           Local only
         </span>
       </header>
       <main
         id="main-content"
         tabIndex={-1}
-        className="relative z-10 flex min-h-svh items-center justify-center px-4 pt-16 pb-8"
+        aria-labelledby="noder-hero-title"
+        className="relative z-10 mx-auto grid min-h-svh w-full max-w-[1180px] items-center gap-8 px-5 pt-24 pb-10 sm:px-8 lg:grid-cols-[minmax(0,0.86fr)_minmax(400px,0.96fr)] lg:gap-16 xl:gap-24"
       >
+        <EmptyStateLead />
         <section
           ref={wellRef}
           aria-labelledby="noder-title"
@@ -336,7 +370,7 @@ function EmptyStateContent({
               : `${EMPTY_STATE_LINE_ID} ${EMPTY_STATE_ERROR_ID}`
           }
           data-dragging={dragging ? "true" : undefined}
-          className="glass-lens relative w-full max-w-[640px] rounded-xl p-8"
+          className="home-reveal home-reveal-panel glass-lens relative w-full max-w-[560px] justify-self-center rounded-xl p-5 sm:p-7 lg:justify-self-end lg:p-8"
         >
           <GlassLayers />
           <div className="relative flex flex-col gap-6">
