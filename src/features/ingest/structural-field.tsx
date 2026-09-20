@@ -203,9 +203,11 @@ function drawVignette(ctx: CanvasRenderingContext2D, w: number, h: number) {
 export function StructuralField({ dragging }: { dragging: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const draggingRef = useRef(false)
+  const kickRef = useRef(() => {})
 
   useEffect(() => {
     draggingRef.current = dragging
+    kickRef.current()
   }, [dragging])
 
   useEffect(() => {
@@ -220,12 +222,15 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
     const view = canvas
     const gfx = ctx
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const pointer = { x: 0, y: 0 }
     const rot = { x: 0.18, y: -0.42 }
     const target = { x: 0.18, y: -0.42 }
     let intro = motion.matches ? 1 : 0
     let frame = 0
     let start = 0
+
+    function settled(): boolean {
+      return Math.abs(target.x - rot.x) < 0.0008 && Math.abs(target.y - rot.y) < 0.0008
+    }
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio, 2)
@@ -258,8 +263,27 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
       drawVignette(gfx, w, h)
     }
 
+    function shouldLoop(): boolean {
+      return !motion.matches && (intro < 1 || !settled())
+    }
+
     function loop(now: number) {
       paint(now)
+      if (shouldLoop()) {
+        frame = window.requestAnimationFrame(loop)
+        return
+      }
+      frame = 0
+    }
+
+    function kick() {
+      if (motion.matches) {
+        paint(performance.now())
+        return
+      }
+      if (frame !== 0) {
+        return
+      }
       frame = window.requestAnimationFrame(loop)
     }
 
@@ -267,21 +291,46 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
       if (motion.matches) {
         return
       }
-      pointer.x = event.clientX / window.innerWidth - 0.5
-      pointer.y = event.clientY / window.innerHeight - 0.5
-      target.x = 0.18 + pointer.y * -0.18
-      target.y = -0.42 + pointer.x * 0.4
+      const pointerX = event.clientX / window.innerWidth - 0.5
+      const pointerY = event.clientY / window.innerHeight - 0.5
+      target.x = 0.18 + pointerY * -0.18
+      target.y = -0.42 + pointerX * 0.4
+      kick()
     }
 
+    function onMotionChange() {
+      if (motion.matches) {
+        intro = 1
+        rot.x = target.x
+        rot.y = target.y
+        if (frame !== 0) {
+          window.cancelAnimationFrame(frame)
+          frame = 0
+        }
+        paint(performance.now())
+        return
+      }
+      kick()
+    }
+
+    kickRef.current = kick
     resize()
-    frame = window.requestAnimationFrame(loop)
-    const observer = new ResizeObserver(resize)
+    paint(performance.now())
+    kick()
+    const observer = new ResizeObserver(() => {
+      resize()
+      paint(performance.now())
+      kick()
+    })
     observer.observe(view)
     window.addEventListener("pointermove", onMove)
+    motion.addEventListener("change", onMotionChange)
     return () => {
+      kickRef.current = () => {}
       window.cancelAnimationFrame(frame)
       observer.disconnect()
       window.removeEventListener("pointermove", onMove)
+      motion.removeEventListener("change", onMotionChange)
     }
   }, [])
 

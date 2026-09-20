@@ -71,7 +71,7 @@ export function GlassLayers() {
     <>
       <div aria-hidden className="glass-refract" />
       <div aria-hidden className="glass-rim" />
-      <div aria-hidden className="glass-sheen" />
+      <div aria-hidden data-glass-sheen className="glass-sheen" />
     </>
   )
 }

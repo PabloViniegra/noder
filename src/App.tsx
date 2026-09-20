@@ -33,12 +33,14 @@ export default function App() {
 
   return ready ? (
     <Suspense fallback={<div className="min-h-svh bg-canvas" aria-busy="true" />}>
-      <ExplorerShell
-        initialCommandOpen={commandRequested}
-        onMounted={() => {
-          setCommandRequested(false)
-        }}
-      />
+      <div className="enter-fade">
+        <ExplorerShell
+          initialCommandOpen={commandRequested}
+          onMounted={() => {
+            setCommandRequested(false)
+          }}
+        />
+      </div>
     </Suspense>
   ) : (
     <EmptyState />

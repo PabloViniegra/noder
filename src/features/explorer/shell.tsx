@@ -25,9 +25,9 @@ function CloseDocumentDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 bg-overlay transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
+        <Dialog.Backdrop className="dialog-backdrop fixed inset-0 bg-overlay" />
         <Dialog.Popup
-          className="glass fixed top-1/2 left-1/2 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 outline-none"
+          className="dialog-surface glass fixed top-1/2 left-1/2 w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-xl p-4 outline-none"
           data-close-document-dialog
         >
           <Dialog.Title className="font-heading text-title-sm text-ink">

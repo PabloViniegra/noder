@@ -102,6 +102,7 @@
   --text-button--letter-spacing: 0;
   --spacing-row: 28px;
   --spacing-indent: 16px;
+  --ease-ui: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 :root,
@@ -364,6 +365,60 @@
     transform: translateY(0);
     outline: 2px solid var(--primary);
     outline-offset: 2px;
+  }
+
+  .enter-fade {
+    opacity: 1;
+    transition: opacity 200ms var(--ease-ui);
+  }
+
+  .enter-fade-quick {
+    transition-duration: 160ms;
+  }
+
+  @starting-style {
+    .enter-fade {
+      opacity: 0;
+    }
+  }
+
+  .dialog-backdrop {
+    transition: opacity 200ms var(--ease-ui);
+  }
+
+  .dialog-backdrop[data-starting-style],
+  .dialog-backdrop[data-ending-style] {
+    opacity: 0;
+  }
+
+  .dialog-surface {
+    opacity: 1;
+    scale: 1;
+    transition:
+      opacity 200ms var(--ease-ui),
+      scale 200ms var(--ease-ui);
+  }
+
+  .dialog-surface[data-starting-style],
+  .dialog-surface[data-ending-style] {
+    opacity: 0;
+    scale: 0.96;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter-fade {
+      transition-duration: 150ms;
+    }
+
+    .dialog-backdrop,
+    .dialog-surface {
+      transition-duration: 150ms;
+    }
+
+    .dialog-surface[data-starting-style],
+    .dialog-surface[data-ending-style] {
+      scale: 1;
+    }
   }
 }
 

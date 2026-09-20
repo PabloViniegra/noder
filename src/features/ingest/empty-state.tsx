@@ -176,9 +176,13 @@ export function EmptyState() {
       if (el === null) {
         continue
       }
+      const sheen = el.querySelector("[data-glass-sheen]")
+      if (!(sheen instanceof HTMLElement)) {
+        continue
+      }
       const box = el.getBoundingClientRect()
-      el.style.setProperty("--spot-x", `${((clientX - box.left) / box.width) * 100}%`)
-      el.style.setProperty("--spot-y", `${((clientY - box.top) / box.height) * 100}%`)
+      sheen.style.setProperty("--spot-x", `${((clientX - box.left) / box.width) * 100}%`)
+      sheen.style.setProperty("--spot-y", `${((clientY - box.top) / box.height) * 100}%`)
     }
   }
 
@@ -188,8 +192,11 @@ export function EmptyState() {
 
   function onPointerLeave() {
     for (const el of [chromeRef.current, wellRef.current]) {
-      el?.style.removeProperty("--spot-x")
-      el?.style.removeProperty("--spot-y")
+      const sheen = el?.querySelector("[data-glass-sheen]")
+      if (sheen instanceof HTMLElement) {
+        sheen.style.removeProperty("--spot-x")
+        sheen.style.removeProperty("--spot-y")
+      }
     }
   }
 
@@ -300,7 +307,7 @@ export function EmptyState() {
               />
               <p
                 className={cn(
-                  "flex h-4 items-center gap-1.5 font-mono text-caption transition-[opacity,translate] duration-200 ease-out motion-reduce:transition-none",
+                  "flex h-4 items-center gap-1.5 font-mono text-caption transition-[opacity,translate] duration-200 ease-ui motion-reduce:transition-opacity motion-reduce:translate-y-0",
                   showSummary ? "translate-y-0 opacity-100" : "translate-y-0.5 opacity-0",
                 )}
               >
