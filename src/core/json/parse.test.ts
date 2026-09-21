@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { parseJson } from "./parse"
-
+import type { JsonNode } from "./types"
 describe("parseJson", () => {
   it("normalizes object and array descendants", () => {
     const result = parseJson('{"user":{"id":1,"active":true},"tags":["json",null]}')
@@ -97,5 +97,25 @@ describe("parseJson", () => {
       throw new Error("expected a parse error")
     }
     expect(result.message.length).toBeGreaterThan(0)
+  })
+
+  it("normalizes nesting deeper than the call-stack limit", () => {
+    const depth = 12_000
+    const result = parseJson(`[${"[".repeat(depth)}${"]".repeat(depth)}]`)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      throw new Error("expected a parsed document")
+    }
+
+    let node: JsonNode | null = result.document.root
+    let visited = 0
+    while (node !== null) {
+      visited += 1
+      node = node.kind === "array" ? (node.children[0] ?? null) : null
+    }
+    expect(visited).toBe(depth + 1)
+    expect(result.document.stats.nodes).toBe(depth + 1)
+    expect(result.document.stats.maxDepth).toBe(depth)
   })
 })

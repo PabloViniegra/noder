@@ -21,6 +21,12 @@ export function isJsonContainerNode(node: JsonNode): node is ContainerNode {
   return node.kind === "object" || node.kind === "array"
 }
 
+export function isJsonStringKeyNode(
+  node: JsonNode,
+): node is JsonNode & { readonly key: string } {
+  return Object.prototype.toString.call(node.key) === "[object String]"
+}
+
 export function getJsonNodeAtPath(root: JsonNode, path: JsonPath): JsonNode | null {
   let current = root
 

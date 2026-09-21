@@ -18,6 +18,7 @@ export type MinimapLayoutOptions = {
 
 const defaultMinHeight = 1 / 250
 
+// Iterative because JSON.parse accepts nesting depths that exceed the call-stack limit (~10k).
 export function layoutMinimap(
   root: JsonNode,
   options: MinimapLayoutOptions = {},
@@ -27,66 +28,130 @@ export function layoutMinimap(
   const sizes = nodeSizes(root)
   const segments: MinimapSegment[] = []
 
-  function walk(node: JsonNode, top: number, height: number, depth: number) {
-    const size = sizes.get(node)
+  type Frame = {
+    readonly node: JsonNode
+    readonly top: number
+    readonly height: number
+    readonly depth: number
+    childIndex: number
+    cursor: number
+    childScale: number
+    started: boolean
+  }
+
+  const stack: Frame[] = [
+    { node: root, top: 0, height: 1, depth: 0, childIndex: 0, cursor: 0, childScale: 0, started: false },
+  ]
+
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]
+    if (frame === undefined) {
+      break
+    }
+    const size = sizes.get(frame.node)
     if (size === undefined) {
-      return
+      stack.pop()
+      continue
     }
 
-    if (depth === 0 || isJsonContainerNode(node)) {
-      segments.push({
-        path: node.path,
-        key: node.key,
-        kind: node.kind,
-        size,
-        depth,
-        top,
-        height,
-      })
-    }
+    if (!frame.started) {
+      if (frame.depth === 0 || isJsonContainerNode(frame.node)) {
+        segments.push({
+          path: frame.node.path,
+          key: frame.node.key,
+          kind: frame.node.kind,
+          size,
+          depth: frame.depth,
+          top: frame.top,
+          height: frame.height,
+        })
+      }
 
-    if (!isJsonContainerNode(node) || node.children.length === 0 || size <= 1) {
-      return
-    }
-
-    const naturalHeader = height / size
-    const header = Math.min(height, Math.max(naturalHeader, headerMin))
-    const naturalChildSpace = height - naturalHeader
-    const childScale = naturalChildSpace > 0 ? (height - header) / naturalChildSpace : 0
-
-    let cursor = top + header
-    for (const child of node.children) {
-      const childSize = sizes.get(child)
-      if (childSize === undefined) {
+      if (!isJsonContainerNode(frame.node) || frame.node.children.length === 0 || size <= 1) {
+        stack.pop()
         continue
       }
 
-      const childHeight = height * (childSize / size) * childScale
-      if (childHeight >= minHeight) {
-        walk(child, cursor, childHeight, depth + 1)
-      }
-      cursor += childHeight
+      const naturalHeader = frame.height / size
+      const header = Math.min(frame.height, Math.max(naturalHeader, headerMin))
+      const naturalChildSpace = frame.height - naturalHeader
+      frame.childScale =
+        naturalChildSpace > 0 ? (frame.height - header) / naturalChildSpace : 0
+      frame.cursor = frame.top + header
+      frame.started = true
+      continue
     }
+
+    if (!isJsonContainerNode(frame.node)) {
+      stack.pop()
+      continue
+    }
+    const child = frame.node.children[frame.childIndex]
+    if (child === undefined) {
+      stack.pop()
+      continue
+    }
+    frame.childIndex += 1
+
+    const childSize = sizes.get(child)
+    if (childSize === undefined) {
+      continue
+    }
+
+    const childHeight = frame.height * (childSize / size) * frame.childScale
+    if (childHeight >= minHeight) {
+      stack.push({
+        node: child,
+        top: frame.cursor,
+        height: childHeight,
+        depth: frame.depth + 1,
+        childIndex: 0,
+        cursor: 0,
+        childScale: 0,
+        started: false,
+      })
+    }
+    frame.cursor += childHeight
   }
 
-  walk(root, 0, 1, 0)
   return segments
 }
 
+// Iterative for the same reason as layoutMinimap.
 function nodeSizes(root: JsonNode): Map<JsonNode, number> {
   const sizes = new Map<JsonNode, number>()
 
-  function walk(node: JsonNode): number {
-    let size = 1
-    if (isJsonContainerNode(node)) {
-      for (const child of node.children) {
-        size += walk(child)
-      }
-    }
-    sizes.set(node, size)
-    return size
+  type Frame = {
+    readonly node: JsonNode
+    childIndex: number
+    collectedSize: number
   }
 
-  walk(root)
+  const stack: Frame[] = [{ node: root, childIndex: 0, collectedSize: 0 }]
+
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]
+    if (frame === undefined) {
+      break
+    }
+
+    const nextChild = isJsonContainerNode(frame.node)
+      ? frame.node.children[frame.childIndex]
+      : undefined
+    if (nextChild === undefined) {
+      stack.pop()
+      const size = frame.collectedSize + 1
+      sizes.set(frame.node, size)
+      const parent = stack[stack.length - 1]
+      if (parent !== undefined) {
+        parent.collectedSize += size
+        parent.childIndex += 1
+      }
+      continue
+    }
+
+    stack.push({ node: nextChild, childIndex: 0, collectedSize: 0 })
+  }
+
   return sizes
 }

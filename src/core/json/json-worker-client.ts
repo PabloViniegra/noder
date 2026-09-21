@@ -1,23 +1,11 @@
 import type { JsonParseResult } from "./parse"
 import type { JsonSearchIndexMatch } from "./search"
 import type { JsonPath } from "./types"
-
-type WorkerMessage =
-  | { readonly type: "parse"; readonly text: string }
-  | { readonly type: "search"; readonly query: string; readonly pathPrefix: JsonPath }
-  | { readonly type: "clear" }
-
-type WorkerRequest = WorkerMessage & { readonly id: number }
-
-type WorkerResponse =
-  | { readonly id: number; readonly type: "parse"; readonly result: JsonParseResult }
-  | {
-      readonly id: number
-      readonly type: "search"
-      readonly matches: readonly JsonSearchIndexMatch[]
-    }
-  | { readonly id: number; readonly type: "clear" }
-  | { readonly id: number; readonly type: "error"; readonly message: string }
+import type {
+  WorkerMessage,
+  WorkerRequest,
+  WorkerResponse,
+} from "./worker-protocol"
 
 type PendingRequest = {
   readonly resolve: (value: WorkerResult) => void

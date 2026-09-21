@@ -1,5 +1,6 @@
 import type { JsonNode, JsonPath, JsonSearchIndexEntry } from "./types"
-import { isJsonContainerNode } from "./traverse"
+import { isJsonContainerNode, isJsonStringKeyNode } from "./traverse"
+import { isJsonPathWithin } from "./path"
 
 export type JsonSearchField = "key" | "value"
 
@@ -29,7 +30,7 @@ export function searchJson(root: JsonNode, query: string): readonly JsonSearchMa
     }
 
     const matchedBy: JsonSearchField[] = []
-    if (isStringKey(node) && node.key.toLowerCase().includes(term)) {
+    if (isJsonStringKeyNode(node) && node.key.toLowerCase().includes(term)) {
       matchedBy.push("key")
     }
     const value = scalarValue(node)
@@ -65,7 +66,7 @@ export function searchJsonIndex(
 
   const matches: JsonSearchIndexMatch[] = []
   for (const entry of index) {
-    if (!isPathWithin(entry.path, pathPrefix)) {
+    if (!isJsonPathWithin(entry.path, pathPrefix)) {
       continue
     }
 
@@ -82,18 +83,6 @@ export function searchJsonIndex(
   }
 
   return matches
-}
-
-function isPathWithin(path: JsonPath, parentPath: JsonPath): boolean {
-  if (path.length < parentPath.length) {
-    return false
-  }
-
-  return parentPath.every((segment, index) => path[index] === segment)
-}
-
-function isStringKey(node: JsonNode): node is JsonNode & { readonly key: string } {
-  return Object.prototype.toString.call(node.key) === "[object String]"
 }
 
 function scalarValue(node: JsonNode): string | null {

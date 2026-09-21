@@ -1,27 +1,8 @@
 import { parseJsonWithSearchIndex } from "./parse"
-import { searchJsonIndex, type JsonSearchIndexMatch } from "./search"
-import type { JsonParseResult, JsonParseWithSearchIndexResult } from "./parse"
-import type { JsonPath, JsonSearchIndexEntry } from "./types"
-
-type WorkerRequest =
-  | { readonly id: number; readonly type: "parse"; readonly text: string }
-  | {
-      readonly id: number
-      readonly type: "search"
-      readonly query: string
-      readonly pathPrefix: JsonPath
-    }
-  | { readonly id: number; readonly type: "clear" }
-
-type WorkerResponse =
-  | { readonly id: number; readonly type: "parse"; readonly result: JsonParseResult }
-  | {
-      readonly id: number
-      readonly type: "search"
-      readonly matches: readonly JsonSearchIndexMatch[]
-    }
-  | { readonly id: number; readonly type: "clear" }
-  | { readonly id: number; readonly type: "error"; readonly message: string }
+import { searchJsonIndex } from "./search"
+import type { JsonParseWithSearchIndexResult } from "./parse"
+import type { JsonSearchIndexEntry } from "./types"
+import type { WorkerRequest, WorkerResponse } from "./worker-protocol"
 
 type WorkerScope = {
   addEventListener: (

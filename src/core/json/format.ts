@@ -1,5 +1,5 @@
-import type { JsonNode, JsonPath, JsonValue } from "./types"
-import { isJsonContainerNode } from "./traverse"
+import type { JsonNode, JsonPath } from "./types"
+import { isJsonContainerNode, isJsonStringKeyNode } from "./traverse"
 
 export type JsonCodeTokenKind =
   | "indent"
@@ -38,7 +38,10 @@ type FormatTask =
     }
 
 export function stringifyJsonNode(node: JsonNode): string {
-  return JSON.stringify(toJsonValue(node), null, 2)
+  // formatJsonCode is iterative, so this holds for nesting depths where JSON.stringify overflows.
+  return formatJsonCode(node)
+    .map((line) => line.tokens.map((token) => token.text).join(""))
+    .join("\n")
 }
 
 export function formatJsonCode(root: JsonNode): readonly JsonCodeLine[] {
@@ -102,7 +105,7 @@ export function formatJsonCode(root: JsonNode): readonly JsonCodeLine[] {
 }
 
 function linePrefix(indent: number, node: JsonNode, withKey: boolean): readonly JsonCodeToken[] {
-  if (withKey && isStringKey(node)) {
+  if (withKey && isJsonStringKeyNode(node)) {
     return [
       ...indentToken(indent),
       { kind: "key", text: JSON.stringify(node.key) },
@@ -135,29 +138,4 @@ function indentToken(indent: number): readonly JsonCodeToken[] {
 
 function commaToken(comma: boolean): readonly JsonCodeToken[] {
   return comma ? [{ kind: "punctuation", text: "," }] : []
-}
-
-function isStringKey(node: JsonNode): node is JsonNode & { readonly key: string } {
-  return Object.prototype.toString.call(node.key) === "[object String]"
-}
-
-function toJsonValue(node: JsonNode): JsonValue {
-  switch (node.kind) {
-    case "object": {
-      const value: { [key: string]: JsonValue } = {}
-      for (const child of node.children) {
-        if (isStringKey(child)) {
-          value[child.key] = toJsonValue(child)
-        }
-      }
-      return value
-    }
-    case "array":
-      return node.children.map(toJsonValue)
-    case "string":
-    case "number":
-    case "boolean":
-    case "null":
-      return node.value
-  }
 }

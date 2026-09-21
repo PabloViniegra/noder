@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react"
+import { DocumentErrorBoundary } from "@/components/error-boundary"
 import { useDocumentStore } from "@/features/document/store"
 import { EmptyState } from "@/features/ingest/empty-state"
 
@@ -33,14 +34,16 @@ export default function App() {
 
   return ready ? (
     <Suspense fallback={<div className="min-h-svh bg-canvas" aria-busy="true" />}>
-      <div className="enter-fade">
-        <ExplorerShell
-          initialCommandOpen={commandRequested}
-          onMounted={() => {
-            setCommandRequested(false)
-          }}
-        />
-      </div>
+      <DocumentErrorBoundary>
+        <div className="enter-fade">
+          <ExplorerShell
+            initialCommandOpen={commandRequested}
+            onMounted={() => {
+              setCommandRequested(false)
+            }}
+          />
+        </div>
+      </DocumentErrorBoundary>
     </Suspense>
   ) : (
     <EmptyState />

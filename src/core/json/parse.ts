@@ -3,11 +3,15 @@ import type {
   JsonNode,
   JsonValue,
   JsonObject,
+  JsonArray,
+  JsonObjectNode,
+  JsonArrayNode,
   JsonPath,
   JsonPathSegment,
   JsonStats,
   JsonSearchIndexEntry,
 } from "./types"
+import { isJsonContainerNode } from "./traverse"
 
 export type JsonParseOk = {
   readonly ok: true
@@ -79,6 +83,14 @@ type JsonStatsAccumulator = {
   -readonly [Key in keyof JsonStats]: JsonStats[Key]
 }
 
+// Iterative because JSON.parse accepts nesting depths that exceed the call-stack limit (~10k).
+type NormalizeFrame = {
+  readonly node: JsonObjectNode | JsonArrayNode
+  readonly entries: readonly (readonly [JsonPathSegment, JsonValue])[]
+  next: number
+  readonly collected: JsonNode[]
+}
+
 function normalizeNode(
   value: JsonValue,
   key: JsonPathSegment | null,
@@ -87,6 +99,79 @@ function normalizeNode(
   stats: JsonStatsAccumulator,
   searchIndex: JsonSearchIndexEntry[] | null = null,
 ): JsonNode {
+  const root = createNode(value, key, path, depth, stats, searchIndex)
+  if (root === null) {
+    throw new Error("Unsupported JSON value")
+  }
+  if (!isJsonContainerNode(root) || !isJsonContainerValue(value)) {
+    return root
+  }
+
+  const stack: NormalizeFrame[] = [
+    { node: root, entries: containerEntries(value), next: 0, collected: [] },
+  ]
+
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1]
+    if (frame === undefined) {
+      break
+    }
+
+    if (frame.next >= frame.entries.length) {
+      stack.pop()
+      const completed = Object.assign(frame.node, { children: frame.collected })
+      const parent = stack[stack.length - 1]
+      if (parent === undefined) {
+        break
+      }
+      parent.collected.push(completed)
+      parent.next += 1
+      continue
+    }
+
+    const entry = frame.entries[frame.next]
+    if (entry === undefined) {
+      frame.next += 1
+      continue
+    }
+    const [childKey, childValue] = entry
+    const child = createNode(
+      childValue,
+      childKey,
+      [...frame.node.path, childKey],
+      frame.node.depth + 1,
+      stats,
+      searchIndex,
+    )
+    if (child === null) {
+      throw new Error("Unsupported JSON value")
+    }
+    if (isJsonContainerValue(childValue)) {
+      // SAFETY: createNode maps container values to container nodes one-to-one.
+      const containerChild = child as JsonObjectNode | JsonArrayNode
+      stack.push({
+        node: containerChild,
+        entries: containerEntries(childValue),
+        next: 0,
+        collected: [],
+      })
+      continue
+    }
+    frame.collected.push(child)
+    frame.next += 1
+  }
+
+  return root
+}
+
+function createNode(
+  value: JsonValue,
+  key: JsonPathSegment | null,
+  path: JsonPath,
+  depth: number,
+  stats: JsonStatsAccumulator,
+  searchIndex: JsonSearchIndexEntry[] | null,
+): JsonNode | null {
   stats.nodes += 1
   stats.maxDepth = Math.max(stats.maxDepth, depth)
 
@@ -105,35 +190,12 @@ function normalizeNode(
 
   if (Array.isArray(value)) {
     stats.arrays += 1
-    return {
-      kind: "array",
-      key,
-      path,
-      depth,
-      children: value.map((child, index) =>
-        normalizeNode(child, index, [...path, index], depth + 1, stats, searchIndex),
-      ),
-    }
+    return { kind: "array", key, path, depth, children: [] }
   }
 
   if (isJsonObject(value)) {
     stats.objects += 1
-    return {
-      kind: "object",
-      key,
-      path,
-      depth,
-      children: Object.keys(value).map((childKey) =>
-        normalizeNode(
-          value[childKey],
-          childKey,
-          [...path, childKey],
-          depth + 1,
-          stats,
-          searchIndex,
-        ),
-      ),
-    }
+    return { kind: "object", key, path, depth, children: [] }
   }
 
   if (isJsonString(value)) {
@@ -151,7 +213,17 @@ function normalizeNode(
     return { kind: "boolean", key, path, depth, value }
   }
 
-  throw new Error("Unsupported JSON value")
+  return null
+}
+
+function containerEntries(value: JsonObject | JsonArray): readonly (readonly [JsonPathSegment, JsonValue])[] {
+  return Array.isArray(value)
+    ? value.map((entry, index) => [index, entry] as const)
+    : Object.entries(value)
+}
+
+function isJsonContainerValue(value: JsonValue): value is JsonObject | JsonArray {
+  return Array.isArray(value) || isJsonObject(value)
 }
 
 function scalarSearchValue(value: JsonValue): string | null {

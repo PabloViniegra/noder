@@ -528,40 +528,42 @@ function ViewSwitch({
   )
 }
 
-type TreeViewLayoutProps = ReturnType<typeof useTreeViewModel> &
-  Pick<TreeViewProps, "onCloseDocument">
+type TreeViewLayoutProps = {
+  readonly model: ReturnType<typeof useTreeViewModel>
+  readonly onCloseDocument: () => void
+}
 
 export function TreeView(props: TreeViewProps) {
   const model = useTreeViewModel(props)
-  return <TreeViewLayout {...model} onCloseDocument={props.onCloseDocument} />
+  return <TreeViewLayout model={model} onCloseDocument={props.onCloseDocument} />
 }
 
-function TreeViewLayout(props: TreeViewLayoutProps) {
+function TreeViewLayout({ model, onCloseDocument }: TreeViewLayoutProps) {
   return (
     <div className="relative flex min-h-svh flex-col overflow-x-clip bg-canvas md:h-svh md:overflow-hidden">
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
       <GlassFilter />
-      <TreeViewHeader {...props} />
-      <TreeViewMain {...props} />
+      <TreeViewHeader model={model} onCloseDocument={onCloseDocument} />
+      <TreeViewMain model={model} onCloseDocument={onCloseDocument} />
     </div>
   )
 }
 
-function TreeViewHeader({
-  sourceName,
-  selectedNode,
-  focused,
-  root,
-  canFocusSelected,
-  focusPath,
-  focusSelectedNode,
-  view,
-  setView,
-  setPaletteOpen,
-  onCloseDocument,
-}: TreeViewLayoutProps) {
+function TreeViewHeader({ model, onCloseDocument }: TreeViewLayoutProps) {
+  const {
+    sourceName,
+    selectedNode,
+    focused,
+    root,
+    canFocusSelected,
+    focusPath,
+    focusSelectedNode,
+    view,
+    setView,
+    setPaletteOpen,
+  } = model
   return (
       <header className="glass-lens sticky top-2 z-20 mx-2 mt-2 rounded-xl">
         <GlassLayers />
@@ -650,53 +652,53 @@ function TreeViewHeader({
   )
 }
 
-function TreeViewMain({
-  scrollRef,
-  searchRef,
-  selectedNode,
-  selectedPath,
-  searchQuery,
-  setSearchQuery,
-  handleSearchKeyDown,
-  searchMatches,
-  selectedMatchIndex,
-  visibleMatchCount,
-  moveToSearchMatch,
-  copySelectedPath,
-  copySelectedJson,
-  copyDocument,
-  copyMessage,
-  viewStats,
-  focused,
-  view,
-  setView,
-  codeLines,
-  searchMatchPaths,
-  revealPath,
-  focusedNode,
-  root,
-  rowVirtualizer,
-  visibleNodes,
-  expandedNodes,
-  searchMatchNodes,
-  hiddenMatchCountByPath,
-  setRowRef,
-  togglePath,
-  handleNodeKeyDown,
-  selectedPathKey,
-  focusedPath,
-  paletteOpen,
-  setPaletteOpen,
-  pathDialogOpen,
-  setPathDialogOpen,
-  navigateToPath,
-  focusDocumentSearch,
-  focusSelectedNode,
-  canFocusSelected,
-  focusPath,
-  selectPath,
-  onCloseDocument,
-}: TreeViewLayoutProps) {
+function TreeViewMain({ model, onCloseDocument }: TreeViewLayoutProps) {
+  const {
+    scrollRef,
+    searchRef,
+    selectedNode,
+    selectedPath,
+    searchQuery,
+    setSearchQuery,
+    handleSearchKeyDown,
+    searchMatches,
+    selectedMatchIndex,
+    visibleMatchCount,
+    moveToSearchMatch,
+    copySelectedPath,
+    copySelectedJson,
+    copyDocument,
+    copyMessage,
+    viewStats,
+    focused,
+    view,
+    setView,
+    codeLines,
+    searchMatchPaths,
+    revealPath,
+    focusedNode,
+    root,
+    rowVirtualizer,
+    visibleNodes,
+    expandedNodes,
+    searchMatchNodes,
+    hiddenMatchCountByPath,
+    setRowRef,
+    togglePath,
+    handleNodeKeyDown,
+    selectedPathKey,
+    focusedPath,
+    paletteOpen,
+    setPaletteOpen,
+    pathDialogOpen,
+    setPathDialogOpen,
+    navigateToPath,
+    focusDocumentSearch,
+    focusSelectedNode,
+    canFocusSelected,
+    focusPath,
+    selectPath,
+  } = model
   return (
       <main
         id="main-content"

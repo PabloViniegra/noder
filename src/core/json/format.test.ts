@@ -84,6 +84,17 @@ describe("stringifyJsonNode", () => {
     expect(stringifyJsonNode(name)).toBe('"Ada"')
     expect(stringifyJsonNode(ok)).toBe("true")
   })
+
+  it("stringifies nesting deeper than the call-stack limit", () => {
+    const depth = 12_000
+    const root = parsedRoot(`[${"[".repeat(depth)}${"]".repeat(depth)}]`)
+
+    // JSON.stringify cannot serve as the oracle here: it also overflows at this depth.
+    const output = stringifyJsonNode(root)
+    expect(output.startsWith("[\n  [\n")).toBe(true)
+    expect(output.endsWith("\n]")).toBe(true)
+    expect(output.indexOf("[]")).toBe(output.lastIndexOf("[]"))
+  })
 })
 
 function parsedRoot(text: string) {

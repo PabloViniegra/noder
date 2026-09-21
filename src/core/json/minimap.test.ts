@@ -143,4 +143,15 @@ describe("layoutMinimap", () => {
 
     expect(withZero).toEqual(withDefault)
   })
+
+  it("lays out nesting deeper than the call-stack limit", () => {
+    const depth = 12_000
+    const root = parsedRoot(`[${"[".repeat(depth)}${"]".repeat(depth)}]`)
+
+    const segments = layoutMinimap(root, { minHeight: 0 })
+
+    expect(segments).toHaveLength(depth + 1)
+    expect(segments[0]).toMatchObject({ path: [], depth: 0, top: 0, height: 1 })
+    expect(segments[segments.length - 1]).toMatchObject({ depth })
+  })
 })
