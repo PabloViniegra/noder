@@ -297,15 +297,26 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
       frameRef.current = window.requestAnimationFrame(loop)
     }
 
+    function setTarget(clientX: number, clientY: number) {
+      const pointerX = clientX / window.innerWidth - 0.5
+      const pointerY = clientY / window.innerHeight - 0.5
+      target.x = 0.18 + pointerY * -0.18
+      target.y = -0.42 + pointerX * (draggingRef.current ? 0.56 : 0.4)
+      kick()
+    }
+
     function onMove(event: PointerEvent) {
       if (motion.matches) {
         return
       }
-      const pointerX = event.clientX / window.innerWidth - 0.5
-      const pointerY = event.clientY / window.innerHeight - 0.5
-      target.x = 0.18 + pointerY * -0.18
-      target.y = -0.42 + pointerX * 0.4
-      kick()
+      setTarget(event.clientX, event.clientY)
+    }
+
+    function onDragOver(event: DragEvent) {
+      if (motion.matches || !draggingRef.current) {
+        return
+      }
+      setTarget(event.clientX, event.clientY)
     }
 
     function onMotionChange() {
@@ -331,19 +342,22 @@ export function StructuralField({ dragging }: { dragging: boolean }) {
     })
     observer.observe(view)
     window.addEventListener("pointermove", onMove)
+    window.addEventListener("dragover", onDragOver)
     motion.addEventListener("change", onMotionChange)
     return () => {
       kickRef.current = () => {}
       cancelLoop()
       observer.disconnect()
       window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("dragover", onDragOver)
       motion.removeEventListener("change", onMotionChange)
     }
   }, [])
 
   return (
-    <div aria-hidden className="structural-field">
+    <div aria-hidden data-dragging={dragging ? "true" : undefined} className="structural-field">
       <canvas ref={canvasRef} />
+      <div className="structural-field-pulse" />
     </div>
   )
 }

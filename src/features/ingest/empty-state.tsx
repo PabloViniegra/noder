@@ -114,12 +114,9 @@ function EmptyStateIntro({
 function EmptyStateLead() {
   return (
     <div className="home-reveal w-full max-w-[32rem] justify-self-center lg:justify-self-start">
-      <p className="font-mono text-caption uppercase tracking-[0.18em] text-primary-hover">
-        Private JSON explorer
-      </p>
       <h1
         id="noder-hero-title"
-        className="mt-5 max-w-[10ch] font-heading text-[clamp(3.25rem,7vw,5.5rem)] font-semibold leading-[0.92] tracking-[-0.07em] text-balance text-ink"
+        className="max-w-[10ch] font-heading text-[clamp(3.25rem,7vw,5.5rem)] font-semibold leading-[0.92] tracking-[-0.07em] text-balance text-ink"
       >
         Understand
         <span className="block text-ink-muted">the shape.</span>
@@ -135,6 +132,16 @@ function EmptyStateLead() {
         <li>Focus mode</li>
         <li>JSONPath</li>
       </ul>
+    </div>
+  )
+}
+
+function GravityReadout({ dragging, busy }: Pick<EmptyStateContentProps, "dragging" | "busy">) {
+  return (
+    <div className="gravity-readout" aria-live="polite">
+      <span aria-hidden className="gravity-readout-mark" />
+      <span>{dragging ? "Release to inspect locally" : busy ? "Parsing locally" : "Ready for local input"}</span>
+      <span className="gravity-readout-mode">read only</span>
     </div>
   )
 }
@@ -328,6 +335,9 @@ function EmptyStateContent({
   return (
     <div
       className="home-canvas relative min-h-svh overflow-hidden"
+      data-dragging={dragging ? "true" : undefined}
+      data-busy={busy ? "true" : undefined}
+      data-has-draft={hasDraft ? "true" : undefined}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -370,10 +380,12 @@ function EmptyStateContent({
               : `${EMPTY_STATE_LINE_ID} ${EMPTY_STATE_ERROR_ID}`
           }
           data-dragging={dragging ? "true" : undefined}
+          data-busy={busy ? "true" : undefined}
           className="home-reveal home-reveal-panel glass-lens relative w-full max-w-[560px] justify-self-center rounded-xl p-5 sm:p-7 lg:justify-self-end lg:p-8"
         >
           <GlassLayers />
           <div className="relative flex flex-col gap-6">
+            <GravityReadout dragging={dragging} busy={busy} />
             <EmptyStateIntro dragging={dragging} shownError={shownError} />
             <JsonDraftField
               jsonRef={jsonRef}
@@ -467,11 +479,13 @@ export function EmptyState() {
     event.preventDefault()
     dragDepth.current += 1
     setDragging(true)
+    paintSpot(event.clientX, event.clientY)
   }
 
   function onDragOver(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
     event.dataTransfer.dropEffect = "copy"
+    paintSpot(event.clientX, event.clientY)
   }
 
   function onDragLeave(event: DragEvent<HTMLDivElement>) {
