@@ -39,6 +39,7 @@ import { CodeView } from "@/features/explorer/code-view"
 import { CommandPalette } from "@/features/explorer/command-palette"
 import { JsonPathDialog } from "@/features/explorer/json-path-dialog"
 import { StructuralMinimap } from "@/features/explorer/structural-minimap"
+import { GlassFilter, GlassLayers } from "@/features/ingest/glass-lens"
 import {
   useTreeViewModel,
   type ExplorerView,
@@ -373,8 +374,11 @@ function TreeRowItem({
       onClick={(event) => handleTreeRowClick(event, expandable, onToggle, onSelect)}
       onFocus={onSelect}
       onKeyDown={onKeyDown}
-      className={treeRowClassName(selected, matched, currentMatch)}
-      style={{ paddingInlineStart: `${node.depth * 16 + 4}px` }}
+      className={cn(treeRowClassName(selected, matched, currentMatch), "tree-depth-rails")}
+      style={{
+        paddingInlineStart: `${node.depth * 16 + 4}px`,
+        backgroundSize: `${node.depth * 16}px 100%`,
+      }}
     >
       <span
         aria-hidden
@@ -404,7 +408,11 @@ function TreeRowDisclosure({ expandable, expanded }: { expandable: boolean; expa
       data-tree-disclosure
       className="mr-1 flex size-6 shrink-0 items-center justify-center text-ink-subtle transition-colors group-hover:text-ink"
     >
-      {expanded ? <ChevronDownIcon aria-hidden /> : <ChevronRightIcon aria-hidden />}
+      {expanded ? (
+        <ChevronDownIcon aria-hidden className="size-3.5" />
+      ) : (
+        <ChevronRightIcon aria-hidden className="size-3.5" />
+      )}
     </span>
   )
 }
@@ -476,7 +484,7 @@ function ViewSwitch({
     <div
       role="tablist"
       aria-label="Document view"
-      className="inline-flex overflow-hidden rounded-md border border-hairline"
+      className="inline-flex rounded-md bg-surface p-0.5"
     >
       <Button
         type="button"
@@ -489,7 +497,7 @@ function ViewSwitch({
         variant="ghost"
         size="sm"
         className={cn(
-          "min-h-11 rounded-none sm:min-h-7",
+          "min-h-11 rounded-sm sm:min-h-7",
           view === "tree" && "bg-selection hover:bg-selection",
         )}
         onClick={() => onChange("tree")}
@@ -508,7 +516,7 @@ function ViewSwitch({
         variant="ghost"
         size="sm"
         className={cn(
-          "min-h-11 rounded-none sm:min-h-7",
+          "min-h-11 rounded-sm sm:min-h-7",
           view === "code" && "bg-selection hover:bg-selection",
         )}
         onClick={() => onChange("code")}
@@ -534,6 +542,7 @@ function TreeViewLayout(props: TreeViewLayoutProps) {
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
+      <GlassFilter />
       <TreeViewHeader {...props} />
       <TreeViewMain {...props} />
     </div>
@@ -554,15 +563,21 @@ function TreeViewHeader({
   onCloseDocument,
 }: TreeViewLayoutProps) {
   return (
-      <header className="glass sticky top-2 z-20 mx-2 mt-2 flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-2 py-1 sm:h-11 sm:flex-nowrap sm:px-3 sm:py-0">
+      <header className="glass-lens sticky top-2 z-20 mx-2 mt-2 rounded-xl">
+        <GlassLayers />
+        <div className="relative flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1 sm:h-11 sm:flex-nowrap sm:px-3 sm:py-0">
         <h1 className="shrink-0">
           <img src="/logo.svg" alt="Noder" className="h-6 w-auto" />
         </h1>
-        <span className="hidden shrink-0 font-mono text-caption text-ink-subtle sm:inline">
+        <span className="hidden shrink-0 items-center gap-2 font-mono text-caption text-ink-subtle sm:inline-flex">
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_0_3px_rgb(39_166_68_/_12%)]"
+          />
           Local only
         </span>
         {sourceName !== null && (
-          <p className="hidden min-w-0 truncate font-mono text-label text-ink-subtle md:block">
+          <p className="hidden min-w-0 truncate font-mono text-label text-ink md:block">
             {sourceName}
           </p>
         )}
@@ -630,6 +645,7 @@ function TreeViewHeader({
             <XIcon />
           </Button>
         </div>
+        </div>
       </header>
   )
 }
@@ -692,7 +708,7 @@ function TreeViewMain({
             <div className="relative min-w-0 flex-1 basis-80">
               <SearchIcon
                 aria-hidden
-                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-subtle"
+                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-subtle"
               />
               <label htmlFor="json-search" className="sr-only">
                 Search keys and values
@@ -709,7 +725,7 @@ function TreeViewMain({
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.currentTarget.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="h-11 w-full rounded-md border border-hairline bg-canvas pr-11 pl-9 text-base text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:h-8 sm:pr-9 sm:text-body"
+                className="h-11 w-full rounded-none border-0 border-b border-hairline bg-transparent pr-11 pl-9 text-base text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-subtle focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 sm:h-8 sm:pr-9 sm:text-body"
               />
               {searchQuery !== "" && (
                 <Button
@@ -804,7 +820,7 @@ function TreeViewMain({
               id="json-tree-panel"
               role="tabpanel"
               aria-labelledby="view-tab-tree"
-              className="h-[60svh] min-w-0 shrink-0 overflow-auto border-y border-hairline bg-surface md:h-auto md:min-h-0 md:flex-1"
+              className="h-[60svh] min-w-0 shrink-0 overflow-auto border-t border-hairline md:h-auto md:min-h-0 md:flex-1"
             >
               <ul
                 role="tree"

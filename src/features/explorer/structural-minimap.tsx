@@ -101,7 +101,7 @@ export function StructuralMinimap({
         ref={railRef}
         aria-labelledby="structure-minimap-title"
         data-structure-minimap
-        className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-hairline bg-surface"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-hairline bg-canvas"
       >
         <div className="absolute inset-0">
           {segments.map((segment, index) => {
@@ -131,7 +131,7 @@ export function StructuralMinimap({
                 className={cn(
                   "group absolute right-0 flex min-h-0 appearance-none items-start overflow-hidden p-0 text-left outline-none transition-colors",
                   "focus-visible:inset-ring-2 focus-visible:inset-ring-ring/40",
-                  isRoot ? "bg-transparent" : "border-b border-hairline bg-surface-raised",
+                  isRoot ? "bg-surface/80" : "border-b border-hairline bg-surface-raised/90",
                   segment.depth > 0 && [
                     "border-l",
                     selected ? "border-l-2 border-l-primary" : "border-l-hairline",

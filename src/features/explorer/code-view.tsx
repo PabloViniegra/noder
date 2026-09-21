@@ -139,7 +139,7 @@ export function CodeView({ lines, selectedPath, matchedPaths, onSelectPath }: Co
       id="json-code-panel"
       role="tabpanel"
       aria-labelledby="view-tab-code"
-      className="min-h-0 min-w-0 flex-1 overflow-auto border-y border-hairline bg-surface"
+      className="min-h-0 min-w-0 flex-1 overflow-auto border-t border-hairline"
     >
       <div
         role="listbox"
