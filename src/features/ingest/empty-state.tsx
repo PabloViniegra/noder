@@ -113,7 +113,7 @@ function EmptyStateIntro({
 
 function EmptyStateLead() {
   return (
-    <div className="home-reveal w-full max-w-[32rem] justify-self-center lg:justify-self-start">
+    <div className="home-reveal pointer-events-auto w-full max-w-[32rem] justify-self-center lg:justify-self-start">
       <h1
         id="noder-hero-title"
         className="max-w-[10ch] font-heading text-[clamp(3.25rem,7vw,5.5rem)] font-semibold leading-[0.92] tracking-[-0.07em] text-balance text-ink"
@@ -126,7 +126,7 @@ function EmptyStateLead() {
       </p>
       <ul
         aria-label="Ways to explore JSON"
-        className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-hairline pt-4 font-mono text-caption text-ink-subtle"
+        className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-hairline pt-4 font-mono text-caption text-ink-muted"
       >
         <li>Tree view</li>
         <li>Focus mode</li>
@@ -368,7 +368,7 @@ function EmptyStateContent({
         id="main-content"
         tabIndex={-1}
         aria-labelledby="noder-hero-title"
-        className="relative z-10 mx-auto grid min-h-svh w-full max-w-[1180px] items-center gap-8 px-5 pt-24 pb-10 sm:px-8 lg:grid-cols-[minmax(0,0.86fr)_minmax(400px,0.96fr)] lg:gap-16 xl:gap-24"
+        className="pointer-events-none relative z-10 mx-auto grid min-h-svh w-full max-w-[1180px] items-center gap-8 px-5 pt-24 pb-10 sm:px-8 lg:grid-cols-[minmax(0,0.86fr)_minmax(400px,0.96fr)] lg:gap-16 xl:gap-24"
       >
         <EmptyStateLead />
         <section
@@ -381,7 +381,7 @@ function EmptyStateContent({
           }
           data-dragging={dragging ? "true" : undefined}
           data-busy={busy ? "true" : undefined}
-          className="home-reveal home-reveal-panel glass-lens relative w-full max-w-[560px] justify-self-center rounded-xl p-5 sm:p-7 lg:justify-self-end lg:p-8"
+          className="home-reveal home-reveal-panel glass-lens pointer-events-auto relative w-full max-w-[560px] justify-self-center rounded-xl p-5 sm:p-7 lg:justify-self-end lg:p-8"
         >
           <GlassLayers />
           <div className="relative flex flex-col gap-6">

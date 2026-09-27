@@ -258,12 +258,42 @@
   isolation: isolate;
 }
 
-.structural-field canvas {
+.structural-field-image {
   position: absolute;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  object-position: 62% center;
+  transition: opacity 420ms var(--ease-ui);
+}
+
+.structural-field-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  touch-action: pan-y;
+  transition: opacity 420ms var(--ease-ui);
+}
+
+.structural-field[data-scene-ready="true"] .structural-field-image {
+  opacity: 0;
+}
+
+.structural-field[data-scene-ready="true"] .structural-field-canvas {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 1023px) {
+  .structural-field[data-scene-ready="true"] .structural-field-canvas {
+    opacity: 0.26;
+  }
 }
 
 .structural-field-pulse {
@@ -397,6 +427,11 @@
     transition-duration: 150ms;
     transition-delay: 0ms;
     transform: none;
+  }
+
+  .structural-field-image,
+  .structural-field-canvas {
+    transition: none;
   }
 
   .structural-field-pulse,
