@@ -3,6 +3,52 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 
 const REST_ROTATION = { x: -0.32, y: -0.58 }
 const PANEL_POSITIONS = [-0.49, 0, 0.49]
+const STAGE_Y = -1.18
+
+function stageMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    uniforms: {
+      accent: { value: new THREE.Color(0x828fff) },
+      core: { value: new THREE.Color(0x5e6ad2) },
+      origin: { value: new THREE.Vector2() },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorld;
+      void main() {
+        vec4 world = modelMatrix * vec4(position, 1.0);
+        vWorld = world.xyz;
+        gl_Position = projectionMatrix * viewMatrix * world;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      varying vec3 vWorld;
+      uniform vec3 accent;
+      uniform vec3 core;
+      uniform vec2 origin;
+      void main() {
+        float dx = vWorld.x - origin.x;
+        float dz = vWorld.z - origin.y;
+        float side = smoothstep(5.4, 0.7, abs(dx));
+        float depth = smoothstep(-2.8, 2.6, vWorld.z);
+        float left = smoothstep(-2.4, -0.15, vWorld.x);
+        float smear = exp(-dx * dx * 0.22) * smoothstep(-0.55, 1.15, dz) * smoothstep(3.4, 0.35, dz);
+        float sheen = exp(-pow(dz - 1.05, 2.0) * 0.85) * exp(-dx * dx * 0.08);
+        float contact = exp(-dx * dx * 1.7 - dz * dz * 1.7);
+        vec3 color = vec3(0.04, 0.042, 0.05);
+        color = mix(color, vec3(0.07, 0.078, 0.1), sheen * 0.65);
+        color = mix(color, core, smear * 0.62);
+        color = mix(color, accent, smear * smear * 0.5 + sheen * 0.18);
+        color *= 1.0 - contact * 0.42;
+        float alpha = side * depth * left;
+        gl_FragColor = vec4(color, alpha);
+        #include <colorspace_fragment>
+      }
+    `,
+  })
+}
 
 export function mountStructuralScene(canvas: HTMLCanvasElement, onReady: () => void) {
   const renderer = new THREE.WebGLRenderer({
@@ -14,11 +60,9 @@ export function mountStructuralScene(canvas: HTMLCanvasElement, onReady: () => v
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.05
-  renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFShadowMap
 
   const scene = new THREE.Scene()
-  scene.fog = new THREE.Fog(0x08090a, 6, 18)
+  scene.fog = new THREE.Fog(0x08090a, 8.5, 22)
   const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 80)
   camera.position.set(0, 0.12, 6.6)
   camera.lookAt(0, 0, 0)
@@ -110,29 +154,20 @@ export function mountStructuralScene(canvas: HTMLCanvasElement, onReady: () => v
   cube.rotation.set(REST_ROTATION.x, REST_ROTATION.y, 0)
   scene.add(cube)
 
-  const floorGeometry = new THREE.PlaneGeometry(80, 80)
-  const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x08090a,
-    metalness: 0.48,
-    roughness: 0.28,
-    envMapIntensity: 0.72,
-  })
-  geometry.add(floorGeometry)
-  materials.add(floorMaterial)
-  const floor = new THREE.Mesh(floorGeometry, floorMaterial)
-  floor.rotation.x = -Math.PI / 2
-  floor.position.y = -1.18
-  floor.receiveShadow = true
-  scene.add(floor)
+  const groundGeometry = new THREE.PlaneGeometry(16, 14)
+  const groundMaterial = stageMaterial()
+  geometry.add(groundGeometry)
+  materials.add(groundMaterial)
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial)
+  ground.rotation.x = -Math.PI / 2
+  ground.position.y = STAGE_Y + 0.01
+  ground.renderOrder = 1
+  scene.add(ground)
 
   const ambient = new THREE.HemisphereLight(0xe2e6ff, 0x17191d, 1.15)
   scene.add(ambient)
   const key = new THREE.DirectionalLight(0xdce0ff, 3.2)
   key.position.set(-3.5, 4.5, 4)
-  key.castShadow = true
-  key.shadow.mapSize.set(1024, 1024)
-  key.shadow.bias = -0.0002
-  key.shadow.normalBias = 0.025
   scene.add(key)
   const raycaster = new THREE.Raycaster()
   const pointer = new THREE.Vector2()
@@ -184,8 +219,12 @@ export function mountStructuralScene(canvas: HTMLCanvasElement, onReady: () => v
     camera.updateProjectionMatrix()
 
     const narrow = camera.aspect < 0.68
+    const x = camera.aspect > 1.25 ? 1.12 : narrow ? 0.02 : 0.45
+    const y = narrow ? 0.2 : 0
     cube.scale.setScalar(narrow ? 0.67 : 1.02)
-    cube.position.set(camera.aspect > 1.25 ? 1.12 : narrow ? 0.02 : 0.45, narrow ? 0.2 : 0, 0)
+    cube.position.set(x, y, 0)
+    ground.position.set(x, STAGE_Y + 0.01, 0.85)
+    groundMaterial.uniforms.origin.value.set(x, 0)
     camera.lookAt(0, 0, 0)
     render()
   }

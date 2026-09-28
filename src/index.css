@@ -315,9 +315,7 @@
 }
 
 .home-canvas {
-  background:
-    radial-gradient(ellipse 42rem 30rem at 14% 78%, rgb(94 106 210 / 10%), transparent 72%),
-    var(--canvas);
+  background: var(--canvas);
 }
 
 .home-reveal {
